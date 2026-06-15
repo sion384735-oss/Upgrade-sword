@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>검 강화하기</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game">
+      <section class="stage upgrade-view" id="upgradeView" aria-label="검 강화 상태">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">검 강화하기</p>
+            <h1 id="swordName">낡은 철검 +0</h1>
+          </div>
+          <button class="icon-button" id="resetButton" type="button" aria-label="게임 초기화">
+            초기화
+          </button>
+        </div>
+
+        <div class="sword-area">
+          <div class="glow" id="glow"></div>
+          <div class="sword" id="sword" aria-hidden="true">
+            <div class="blade"></div>
+            <div class="guard"></div>
+            <div class="grip"></div>
+            <div class="pommel"></div>
+          </div>
+          <div class="level-badge" id="levelBadge">+0</div>
+        </div>
+
+        <div class="notice" id="message">강화를 눌러 검을 성장시키세요.</div>
+
+        <div class="controls">
+          <button class="primary" id="enhanceButton" type="button">강화하기</button>
+          <button class="secondary" id="workButton" type="button">몬스터 잡기</button>
+        </div>
+      </section>
+
+      <section class="stage battle-view hidden" id="battleView" aria-label="몬스터 전투">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">골드 벌기</p>
+            <h1 id="monsterName">슬라임</h1>
+          </div>
+          <button class="icon-button" id="backButton" type="button">강화로</button>
+        </div>
+
+        <div class="monster-area">
+          <div class="monster-shadow"></div>
+          <div class="monster" id="monster" aria-hidden="true">
+            <div class="monster-eye left"></div>
+            <div class="monster-eye right"></div>
+            <div class="monster-mouth"></div>
+          </div>
+          <div class="monster-stage" id="monsterStage">1 / 10 단계</div>
+        </div>
+
+        <div class="battle-status">
+          <div class="progress-label">
+            <span id="monsterHpText">HP 0 / 0</span>
+            <span id="monsterReward">보상 0 G</span>
+          </div>
+          <div class="hp-bar">
+            <div id="monsterHpBar"></div>
+          </div>
+        </div>
+
+        <div class="notice" id="battleMessage">몬스터를 처치하면 골드를 얻습니다.</div>
+
+        <div class="controls">
+          <button class="primary" id="attackButton" type="button">공격하기</button>
+          <button class="secondary" id="stayButton" type="button">강화 화면</button>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="게임 정보">
+        <div class="stats-grid">
+          <div class="stat">
+            <span>골드</span>
+            <strong id="gold">0</strong>
+          </div>
+          <div class="stat">
+            <span>강화 비용</span>
+            <strong id="cost">0</strong>
+          </div>
+          <div class="stat">
+            <span>성공 확률</span>
+            <strong id="chance">0%</strong>
+          </div>
+          <div class="stat">
+            <span>최고 강화</span>
+            <strong id="best">+0</strong>
+          </div>
+          <div class="stat">
+            <span>몬스터 단계</span>
+            <strong id="monsterLevel">1 / 10</strong>
+          </div>
+        </div>
+
+        <div class="progress-block">
+          <div class="progress-label">
+            <span>목표 +20</span>
+            <span id="progressText">0%</span>
+          </div>
+          <div class="progress">
+            <div id="progressBar"></div>
+          </div>
+        </div>
+
+        <div class="rates">
+          <h2>현재 단계 효과</h2>
+          <p id="riskText">실패해도 단계가 유지됩니다.</p>
+        </div>
+
+        <ol class="log" id="log" aria-label="강화 기록"></ol>
+      </aside>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
