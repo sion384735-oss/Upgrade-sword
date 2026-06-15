@@ -11,6 +11,9 @@ const state = {
   monsterHp: 0,
 };
 
+let autoAttackTimer = null;
+let autoEnhanceTimer = null;
+
 const elements = {
   stage: document.querySelector(".stage"),
   upgradeView: document.querySelector("#upgradeView"),
@@ -29,17 +32,24 @@ const elements = {
   riskText: document.querySelector("#riskText"),
   log: document.querySelector("#log"),
   enhanceButton: document.querySelector("#enhanceButton"),
+  autoEnhanceButton: document.querySelector("#autoEnhanceButton"),
+  enhanceTargetInput: document.querySelector("#enhanceTargetInput"),
   workButton: document.querySelector("#workButton"),
   resetButton: document.querySelector("#resetButton"),
   backButton: document.querySelector("#backButton"),
   stayButton: document.querySelector("#stayButton"),
   attackButton: document.querySelector("#attackButton"),
+  autoAttackButton: document.querySelector("#autoAttackButton"),
+  setMonsterStageButton: document.querySelector("#setMonsterStageButton"),
+  monsterStageInput: document.querySelector("#monsterStageInput"),
   monster: document.querySelector("#monster"),
   monsterName: document.querySelector("#monsterName"),
   monsterStage: document.querySelector("#monsterStage"),
   monsterHpText: document.querySelector("#monsterHpText"),
   monsterReward: document.querySelector("#monsterReward"),
   monsterHpBar: document.querySelector("#monsterHpBar"),
+  attackPower: document.querySelector("#attackPower"),
+  attackStat: document.querySelector("#attackStat"),
   battleMessage: document.querySelector("#battleMessage"),
 };
 
@@ -102,12 +112,26 @@ function getMonsterReward(level) {
   return Math.floor(90 + level * level * 48 + state.best * 18);
 }
 
+function getDamageRange() {
+  const level = state.level;
+  const min = Math.floor(28 + level * 13 + level * level * 1.8);
+  const max = Math.floor(min + 24 + level * 7 + level * level * 0.9);
+  return { min, max };
+}
+
 function getPlayerDamage() {
-  return Math.floor(34 + state.level * 14 + Math.random() * (30 + state.level * 5));
+  const { min, max } = getDamageRange();
+  return Math.floor(min + Math.random() * (max - min + 1));
 }
 
 function clampMonsterLevel(level) {
-  return Math.min(MAX_MONSTER_LEVEL, Math.max(1, level));
+  if (!Number.isFinite(level)) return 1;
+  return Math.min(MAX_MONSTER_LEVEL, Math.max(1, Math.round(level)));
+}
+
+function clampEnhanceTarget(level) {
+  if (!Number.isFinite(level)) return 1;
+  return Math.min(MAX_LEVEL, Math.max(1, Math.round(level)));
 }
 
 function ensureMonsterHp() {
@@ -182,6 +206,7 @@ function render() {
   const isMax = state.level >= MAX_LEVEL;
   const monsterMaxHp = getMonsterMaxHp(state.monsterLevel);
   const monsterProgress = Math.max(0, Math.round((state.monsterHp / monsterMaxHp) * 100));
+  const damageRange = getDamageRange();
 
   elements.swordName.textContent = `${getSwordTitle(state.level)} +${state.level}`;
   elements.levelBadge.textContent = `+${state.level}`;
@@ -191,11 +216,14 @@ function render() {
   elements.chance.textContent = isMax ? "100%" : `${chance}%`;
   elements.best.textContent = `+${state.best}`;
   elements.monsterLevel.textContent = `${state.monsterLevel} / ${MAX_MONSTER_LEVEL}`;
+  elements.attackStat.textContent = `${damageRange.min.toLocaleString("ko-KR")} ~ ${damageRange.max.toLocaleString("ko-KR")}`;
   elements.progressText.textContent = `${progress}%`;
   elements.progressBar.style.width = `${progress}%`;
   elements.riskText.textContent = isMax ? "최고 단계에 도달했습니다." : getRiskText(state.level);
   elements.enhanceButton.disabled = isMax || state.destroyed || state.gold < cost;
   elements.enhanceButton.textContent = state.destroyed ? "검 파괴됨" : isMax ? "최고 강화" : "강화하기";
+  elements.autoEnhanceButton.textContent = autoEnhanceTimer ? "자동 중지" : "자동 강화";
+  elements.upgradeView.classList.toggle("auto", Boolean(autoEnhanceTimer));
   elements.upgradeView.classList.toggle("max", isMax);
 
   elements.monsterName.textContent = monsterNames[state.monsterLevel - 1];
@@ -204,9 +232,14 @@ function render() {
   elements.monsterHpText.textContent = `HP ${state.monsterHp.toLocaleString("ko-KR")} / ${monsterMaxHp.toLocaleString("ko-KR")}`;
   elements.monsterReward.textContent = `보상 ${formatGold(getMonsterReward(state.monsterLevel))}`;
   elements.monsterHpBar.style.width = `${monsterProgress}%`;
+  elements.attackPower.textContent = `공격력 ${damageRange.min.toLocaleString("ko-KR")} ~ ${damageRange.max.toLocaleString("ko-KR")}`;
+  elements.monsterStageInput.value = state.monsterLevel;
+  elements.autoAttackButton.textContent = autoAttackTimer ? "자동 중지" : "자동 공격";
+  elements.battleView.classList.toggle("auto", Boolean(autoAttackTimer));
 }
 
 function showBattle() {
+  stopAutoEnhance();
   ensureMonsterHp();
   elements.upgradeView.classList.add("hidden");
   elements.battleView.classList.remove("hidden");
@@ -215,9 +248,23 @@ function showBattle() {
 }
 
 function showUpgrade() {
+  stopAutoAttack();
   elements.battleView.classList.add("hidden");
   elements.upgradeView.classList.remove("hidden");
   render();
+}
+
+function setMonsterStage(level) {
+  const nextLevel = clampMonsterLevel(level);
+  state.monsterLevel = nextLevel;
+  state.monsterHp = getMonsterMaxHp(nextLevel);
+  setBattleMessage(`${monsterNames[nextLevel - 1]} ${nextLevel}단계로 변경했습니다.`);
+  saveGame();
+  render();
+}
+
+function applyMonsterStageInput() {
+  setMonsterStage(Number(elements.monsterStageInput.value));
 }
 
 function defeatMonster() {
@@ -249,6 +296,80 @@ function attackMonster() {
 
   setBattleMessage(`${damage.toLocaleString("ko-KR")} 피해를 입혔습니다.`, "hit");
   saveGame();
+  render();
+}
+
+function stopAutoEnhance() {
+  if (!autoEnhanceTimer) return;
+  window.clearInterval(autoEnhanceTimer);
+  autoEnhanceTimer = null;
+  render();
+}
+
+function runAutoEnhanceStep() {
+  const targetLevel = clampEnhanceTarget(Number(elements.enhanceTargetInput.value));
+  elements.enhanceTargetInput.value = targetLevel;
+
+  if (state.level >= targetLevel) {
+    stopAutoEnhance();
+    setMessage(`목표 +${targetLevel}에 도달했습니다.`, "success");
+    return;
+  }
+
+  if (state.destroyed) {
+    stopAutoEnhance();
+    setMessage("검이 파괴되어 자동 강화를 중지했습니다.", "fail");
+    return;
+  }
+
+  const cost = getCost(state.level);
+  if (state.gold < cost) {
+    stopAutoEnhance();
+    setMessage(`골드가 부족해 자동 강화를 중지했습니다. 필요 골드: ${formatGold(cost)}`);
+    return;
+  }
+
+  enhance();
+}
+
+function toggleAutoEnhance() {
+  if (autoEnhanceTimer) {
+    stopAutoEnhance();
+    setMessage("자동 강화를 중지했습니다.");
+    return;
+  }
+
+  const targetLevel = clampEnhanceTarget(Number(elements.enhanceTargetInput.value));
+  elements.enhanceTargetInput.value = targetLevel;
+
+  if (state.level >= targetLevel) {
+    setMessage(`이미 목표 +${targetLevel} 이상입니다.`);
+    return;
+  }
+
+  setMessage(`+${targetLevel}까지 자동 강화를 시작합니다.`);
+  autoEnhanceTimer = window.setInterval(runAutoEnhanceStep, 650);
+  runAutoEnhanceStep();
+  render();
+}
+
+function stopAutoAttack() {
+  if (!autoAttackTimer) return;
+  window.clearInterval(autoAttackTimer);
+  autoAttackTimer = null;
+  render();
+}
+
+function toggleAutoAttack() {
+  if (autoAttackTimer) {
+    stopAutoAttack();
+    setBattleMessage("자동 공격을 중지했습니다.");
+    return;
+  }
+
+  setBattleMessage("자동 공격을 시작했습니다.");
+  autoAttackTimer = window.setInterval(attackMonster, 450);
+  attackMonster();
   render();
 }
 
@@ -306,6 +427,8 @@ function enhance() {
 }
 
 function resetGame() {
+  stopAutoAttack();
+  stopAutoEnhance();
   state.gold = 150;
   state.level = 0;
   state.destroyed = false;
@@ -318,11 +441,15 @@ function resetGame() {
 }
 
 elements.enhanceButton.addEventListener("click", enhance);
+elements.autoEnhanceButton.addEventListener("click", toggleAutoEnhance);
 elements.workButton.addEventListener("click", showBattle);
 elements.resetButton.addEventListener("click", resetGame);
 elements.backButton.addEventListener("click", showUpgrade);
 elements.stayButton.addEventListener("click", showUpgrade);
 elements.attackButton.addEventListener("click", attackMonster);
+elements.autoAttackButton.addEventListener("click", toggleAutoAttack);
+elements.setMonsterStageButton.addEventListener("click", applyMonsterStageInput);
+elements.monsterStageInput.addEventListener("change", applyMonsterStageInput);
 
 loadGame();
 ensureMonsterHp();

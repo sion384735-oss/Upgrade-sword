@@ -298,6 +298,12 @@ h1 {
   background: rgba(16, 17, 20, 0.55);
 }
 
+.battle-meta {
+  margin-top: 0.65rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .hp-bar {
   height: 1rem;
   overflow: hidden;
@@ -318,6 +324,42 @@ h1 {
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.battle-controls {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.monster-settings,
+.enhance-settings {
+  display: grid;
+  grid-template-columns: auto minmax(4rem, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: rgba(16, 17, 20, 0.48);
+}
+
+.monster-settings label,
+.enhance-settings label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.monster-settings input,
+.enhance-settings input {
+  min-width: 0;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 0.75rem;
+  background: #111318;
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
 }
 
 .primary,
@@ -450,6 +492,14 @@ h1 {
   transform: scale(1.08);
 }
 
+.battle-view.auto .monster {
+  filter: drop-shadow(0 0 1.25rem rgba(119, 167, 255, 0.55));
+}
+
+.upgrade-view.auto .sword {
+  filter: drop-shadow(0 0 1.25rem rgba(246, 200, 95, 0.7));
+}
+
 .stage.max .glow {
   background: rgba(246, 200, 95, 0.45);
   transform: scale(1.35);
@@ -468,7 +518,13 @@ h1 {
   }
 
   .controls,
+  .battle-controls,
   .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-settings,
+  .enhance-settings {
     grid-template-columns: 1fr;
   }
 
