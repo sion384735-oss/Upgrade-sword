@@ -15,6 +15,7 @@ const elements = {
   stage: document.querySelector(".stage"),
   upgradeView: document.querySelector("#upgradeView"),
   battleView: document.querySelector("#battleView"),
+  sword: document.querySelector("#sword"),
   swordName: document.querySelector("#swordName"),
   levelBadge: document.querySelector("#levelBadge"),
   gold: document.querySelector("#gold"),
@@ -33,6 +34,7 @@ const elements = {
   backButton: document.querySelector("#backButton"),
   stayButton: document.querySelector("#stayButton"),
   attackButton: document.querySelector("#attackButton"),
+  monster: document.querySelector("#monster"),
   monsterName: document.querySelector("#monsterName"),
   monsterStage: document.querySelector("#monsterStage"),
   monsterHpText: document.querySelector("#monsterHpText"),
@@ -81,6 +83,15 @@ function getRiskText(level) {
 function getSwordTitle(level) {
   const index = Math.min(swordTitles.length - 1, Math.floor(level / 4));
   return swordTitles[index];
+}
+
+function getSwordImagePath(level) {
+  const imageLevel = Math.min(20, level + 1);
+  return `assets/swords/cutouts/sword-${String(imageLevel).padStart(2, "0")}.png`;
+}
+
+function getMonsterImagePath(level) {
+  return `assets/monsters/monster-${String(level).padStart(2, "0")}.png`;
 }
 
 function getMonsterMaxHp(level) {
@@ -174,6 +185,7 @@ function render() {
 
   elements.swordName.textContent = `${getSwordTitle(state.level)} +${state.level}`;
   elements.levelBadge.textContent = `+${state.level}`;
+  elements.sword.style.backgroundImage = `url("${getSwordImagePath(state.level)}")`;
   elements.gold.textContent = formatGold(state.gold);
   elements.cost.textContent = isMax ? "완료" : formatGold(cost);
   elements.chance.textContent = isMax ? "100%" : `${chance}%`;
@@ -188,6 +200,7 @@ function render() {
 
   elements.monsterName.textContent = monsterNames[state.monsterLevel - 1];
   elements.monsterStage.textContent = `${state.monsterLevel} / ${MAX_MONSTER_LEVEL} 단계`;
+  elements.monster.style.backgroundImage = `url("${getMonsterImagePath(state.monsterLevel)}")`;
   elements.monsterHpText.textContent = `HP ${state.monsterHp.toLocaleString("ko-KR")} / ${monsterMaxHp.toLocaleString("ko-KR")}`;
   elements.monsterReward.textContent = `보상 ${formatGold(getMonsterReward(state.monsterLevel))}`;
   elements.monsterHpBar.style.width = `${monsterProgress}%`;
