@@ -32,6 +32,7 @@ const elements = {
   gold: document.querySelector("#gold"),
   cost: document.querySelector("#cost"),
   chance: document.querySelector("#chance"),
+  breakChance: document.querySelector("#breakChance"),
   best: document.querySelector("#best"),
   monsterLevel: document.querySelector("#monsterLevel"),
   message: document.querySelector("#message"),
@@ -52,6 +53,8 @@ const elements = {
   monsterNextButton: document.querySelector("#monsterNextButton"),
   monsterStageReadout: document.querySelector("#monsterStageReadout"),
   monster: document.querySelector("#monster"),
+  attackSword: document.querySelector("#attackSword"),
+  coinLayer: document.querySelector("#coinLayer"),
   monsterName: document.querySelector("#monsterName"),
   monsterStage: document.querySelector("#monsterStage"),
   monsterHpText: document.querySelector("#monsterHpText"),
@@ -95,6 +98,12 @@ function getCost(level) {
 
 function getChance(level) {
   return Math.max(12, Math.floor(95 - level * 4.2));
+}
+
+function getBreakChance(level) {
+  if (level >= 15) return 55;
+  if (level >= 11) return 35;
+  return 0;
 }
 
 function getRiskText(level) {
@@ -257,17 +266,20 @@ function render() {
   elements.swordName.textContent = `${getSwordTitle(state.level)} +${state.level}`;
   elements.levelBadge.textContent = `+${state.level}`;
   elements.sword.style.backgroundImage = `url("${getSwordImagePath(state.level)}")`;
+  elements.attackSword.style.backgroundImage = `url("${getSwordImagePath(state.level)}")`;
+  elements.attackSword.style.setProperty("--attack-scale", 1 + Math.min(0.55, state.level * 0.025));
   elements.gold.textContent = formatGold(state.gold);
   elements.cost.textContent = isMax ? "완료" : formatGold(cost);
   elements.chance.textContent = isMax ? "100%" : `${chance}%`;
+  elements.breakChance.textContent = isMax ? "0%" : `${getBreakChance(state.level)}%`;
   elements.best.textContent = `+${state.best}`;
   elements.monsterLevel.textContent = `${state.monsterLevel} / ${MAX_MONSTER_LEVEL}`;
   elements.attackStat.textContent = `${damageRange.min.toLocaleString("ko-KR")} ~ ${damageRange.max.toLocaleString("ko-KR")}`;
   elements.progressText.textContent = `${progress}%`;
   elements.progressBar.style.width = `${progress}%`;
   elements.riskText.textContent = isMax ? "최고 단계에 도달했습니다." : getRiskText(state.level);
-  elements.enhanceButton.disabled = isMax || state.destroyed || state.gold < cost;
-  elements.enhanceButton.textContent = state.destroyed ? "검 파괴됨" : isMax ? "최고 강화" : "강화하기";
+  elements.enhanceButton.disabled = isMax || state.gold < cost;
+  elements.enhanceButton.textContent = isMax ? "최고 강화" : "강화하기";
   elements.autoEnhanceButton.textContent = autoEnhanceTimer ? "자동 중지" : "자동 강화";
   elements.upgradeView.classList.toggle("auto", Boolean(autoEnhanceTimer));
   elements.upgradeView.classList.toggle("max", isMax);
@@ -328,6 +340,7 @@ function defeatMonster() {
   const defeatedLevel = state.monsterLevel;
   const earned = getMonsterReward(defeatedLevel);
   state.gold += earned;
+  playCoinDrop(earned);
 
   if (defeatedLevel < MAX_MONSTER_LEVEL) {
     state.unlockedMonsterLevel = Math.max(state.unlockedMonsterLevel, defeatedLevel + 1);
@@ -346,6 +359,7 @@ function attackMonster() {
   const now = Date.now();
   if (now - lastAttackAt < ATTACK_INTERVAL_MS) return;
   lastAttackAt = now;
+  playSwordAttackMotion();
 
   const damage = Math.min(state.monsterHp, getPlayerDamage());
   state.monsterHp -= damage;
@@ -358,6 +372,33 @@ function attackMonster() {
   setBattleMessage(`${damage.toLocaleString("ko-KR")} 피해를 입혔습니다.`, "hit");
   saveGame();
   render();
+}
+
+function playSwordAttackMotion() {
+  elements.attackSword.classList.remove("slash");
+  void elements.attackSword.offsetWidth;
+  elements.attackSword.classList.add("slash");
+}
+
+function playCoinDrop(amount) {
+  const value = document.createElement("div");
+  value.className = "coin-value";
+  value.textContent = `+${formatGold(amount)}`;
+  elements.coinLayer.append(value);
+
+  for (let i = 0; i < 7; i += 1) {
+    const coin = document.createElement("div");
+    coin.className = "coin";
+    coin.textContent = "G";
+    coin.style.setProperty("--coin-x", `${(i - 3) * 1.25}rem`);
+    coin.style.animationDelay = `${i * 45}ms`;
+    elements.coinLayer.append(coin);
+  }
+
+  window.setTimeout(() => {
+    value.remove();
+    elements.coinLayer.querySelectorAll(".coin").forEach((coin) => coin.remove());
+  }, 1300);
 }
 
 function startBattleTimer() {
@@ -414,12 +455,6 @@ function runAutoEnhanceStep() {
   if (state.level >= targetLevel) {
     stopAutoEnhance();
     setMessage(`목표 +${targetLevel}에 도달했습니다.`, "success");
-    return;
-  }
-
-  if (state.destroyed) {
-    stopAutoEnhance();
-    setMessage("검이 파괴되어 자동 강화를 중지했습니다.", "fail");
     return;
   }
 
@@ -480,7 +515,7 @@ function handleFailure() {
   if (state.level >= 15 && Math.random() < 0.55) {
     state.destroyed = true;
     state.level = 0;
-    setMessage("검이 산산조각 났습니다. 초기화로 새 검을 시작하세요.", "fail");
+    setMessage("검이 산산조각 났습니다. +0 검으로 다시 강화할 수 있습니다.", "fail");
     addLog(`+${before} 강화 실패: 검 파괴`, "fail");
     return;
   }
@@ -488,7 +523,7 @@ function handleFailure() {
   if (state.level >= 11 && Math.random() < 0.35) {
     state.destroyed = true;
     state.level = 0;
-    setMessage("검이 파괴되었습니다. 초기화로 새 검을 시작하세요.", "fail");
+    setMessage("검이 파괴되었습니다. +0 검으로 다시 강화할 수 있습니다.", "fail");
     addLog(`+${before} 강화 실패: 검 파괴`, "fail");
     return;
   }
@@ -506,9 +541,10 @@ function handleFailure() {
 
 function enhance() {
   const cost = getCost(state.level);
-  if (state.destroyed || state.level >= MAX_LEVEL || state.gold < cost) return;
+  if (state.level >= MAX_LEVEL || state.gold < cost) return;
 
   state.gold -= cost;
+  state.destroyed = false;
   const before = state.level;
   const chance = getChance(state.level);
   const success = Math.random() * 100 < chance;

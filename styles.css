@@ -193,25 +193,88 @@ h1 {
 
 .glow {
   position: absolute;
-  width: 15rem;
+  width: 13rem;
   aspect-ratio: 1;
   border-radius: 999px;
-  background: rgba(119, 167, 255, 0.22);
-  filter: blur(1.2rem);
+  background: rgba(119, 167, 255, 0.14);
+  filter: blur(1.5rem);
   transform: scale(1);
   transition: background 180ms ease, transform 180ms ease;
 }
 
 .sword {
   position: relative;
-  width: min(18rem, 68vw);
-  height: min(22rem, 74vw);
+  width: min(19rem, 70vw);
+  height: min(23rem, 76vw);
   background-image: url("assets/swords/cutouts/sword-01.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+  filter: drop-shadow(0 1.2rem 1.4rem rgba(0, 0, 0, 0.34));
   transform: scale(1);
   transition: transform 160ms ease, filter 160ms ease;
+}
+
+.attack-sword {
+  position: absolute;
+  left: 4%;
+  top: 13%;
+  z-index: 3;
+  width: min(13rem, 42vw);
+  height: min(16rem, 48vw);
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("assets/swords/cutouts/sword-01.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  filter: drop-shadow(0 0 1rem rgba(119, 167, 255, 0.85));
+  transform: translate(-40%, 20%) rotate(-44deg) scale(var(--attack-scale, 1));
+}
+
+.attack-sword.slash {
+  animation: sword-slash 260ms cubic-bezier(0.18, 0.86, 0.28, 1) both;
+}
+
+.coin-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.coin {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  display: grid;
+  width: 2.4rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid #ffe39a;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fff7c6, var(--gold) 48%, #b87a18 100%);
+  color: #5a3600;
+  font-size: 0.95rem;
+  font-weight: 900;
+  box-shadow: 0 0.65rem 1rem rgba(0, 0, 0, 0.3);
+  animation: coin-drop 900ms ease-out both;
+  transform: translate(var(--coin-x, 0), 0);
+}
+
+.coin-value {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 4;
+  color: var(--gold);
+  font-size: 1.4rem;
+  font-weight: 900;
+  text-shadow: 0 0.25rem 0.7rem rgba(0, 0, 0, 0.75);
+  animation: coin-value-rise 900ms ease-out both;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .blade {
@@ -551,6 +614,64 @@ h1 {
 .stage.max .glow {
   background: rgba(246, 200, 95, 0.45);
   transform: scale(1.35);
+}
+
+@keyframes sword-slash {
+  0% {
+    opacity: 0;
+    transform: translate(-55%, 22%) rotate(-48deg) scale(calc(var(--attack-scale, 1) * 0.86));
+  }
+
+  24% {
+    opacity: 1;
+  }
+
+  58% {
+    opacity: 1;
+    transform: translate(88%, -4%) rotate(28deg) scale(calc(var(--attack-scale, 1) * 1.18));
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(118%, -16%) rotate(40deg) scale(calc(var(--attack-scale, 1) * 1.05));
+  }
+}
+
+@keyframes coin-drop {
+  0% {
+    opacity: 0;
+    transform: translate(var(--coin-x, 0), -4rem) scale(0.55) rotate(0deg);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  62% {
+    opacity: 1;
+    transform: translate(var(--coin-x, 0), 2.8rem) scale(1) rotate(220deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--coin-x, 0), 5.3rem) scale(0.8) rotate(360deg);
+  }
+}
+
+@keyframes coin-value-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 1rem) scale(0.9);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -3rem) scale(1.06);
+  }
 }
 
 @media (max-width: 800px) {
