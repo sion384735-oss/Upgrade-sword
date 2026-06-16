@@ -1,5 +1,8 @@
 const MAX_LEVEL = 20;
 const MAX_MONSTER_LEVEL = 10;
+const BATTLE_TIME_LIMIT = 20;
+const ATTACK_INTERVAL_MS = 450;
+const BALANCE_VERSION = 2;
 const STORAGE_KEY = "sword-upgrade-save";
 
 const state = {
@@ -8,11 +11,16 @@ const state = {
   best: 0,
   destroyed: false,
   monsterLevel: 1,
+  unlockedMonsterLevel: 1,
   monsterHp: 0,
+  balanceVersion: BALANCE_VERSION,
 };
 
 let autoAttackTimer = null;
 let autoEnhanceTimer = null;
+let battleTimer = null;
+let battleTimeLeft = BATTLE_TIME_LIMIT;
+let lastAttackAt = 0;
 
 const elements = {
   stage: document.querySelector(".stage"),
@@ -40,14 +48,17 @@ const elements = {
   stayButton: document.querySelector("#stayButton"),
   attackButton: document.querySelector("#attackButton"),
   autoAttackButton: document.querySelector("#autoAttackButton"),
-  setMonsterStageButton: document.querySelector("#setMonsterStageButton"),
-  monsterStageInput: document.querySelector("#monsterStageInput"),
+  monsterPrevButton: document.querySelector("#monsterPrevButton"),
+  monsterNextButton: document.querySelector("#monsterNextButton"),
+  monsterStageReadout: document.querySelector("#monsterStageReadout"),
   monster: document.querySelector("#monster"),
   monsterName: document.querySelector("#monsterName"),
   monsterStage: document.querySelector("#monsterStage"),
   monsterHpText: document.querySelector("#monsterHpText"),
   monsterReward: document.querySelector("#monsterReward"),
   monsterHpBar: document.querySelector("#monsterHpBar"),
+  battleTimer: document.querySelector("#battleTimer"),
+  battleTimeBar: document.querySelector("#battleTimeBar"),
   attackPower: document.querySelector("#attackPower"),
   attackStat: document.querySelector("#attackStat"),
   battleMessage: document.querySelector("#battleMessage"),
@@ -75,6 +86,9 @@ const monsterNames = [
   "고대 드래곤",
 ];
 
+const monsterRewardTable = [0, 100, 900, 3000, 9000, 25000, 70000, 180000, 450000, 1100000, 3000000];
+const monsterHpTable = monsterRewardTable.map((reward) => reward * 6);
+
 function getCost(level) {
   return Math.floor(80 + level * level * 35 + level * 45);
 }
@@ -84,8 +98,7 @@ function getChance(level) {
 }
 
 function getRiskText(level) {
-  if (level < 5) return "실패해도 단계가 유지됩니다.";
-  if (level < 10) return "실패하면 강화 단계가 1 내려갑니다.";
+  if (level <= 10) return "실패해도 단계가 유지됩니다.";
   if (level < 15) return "실패하면 35% 확률로 검이 파괴됩니다.";
   return "실패하면 55% 확률로 검이 파괴됩니다.";
 }
@@ -105,17 +118,23 @@ function getMonsterImagePath(level) {
 }
 
 function getMonsterMaxHp(level) {
-  return Math.floor(70 + level * level * 28 + level * 34);
+  return monsterHpTable[clampMonsterLevel(level)];
 }
 
 function getMonsterReward(level) {
-  return Math.floor(90 + level * level * 48 + state.best * 18);
+  return monsterRewardTable[clampMonsterLevel(level)];
 }
 
 function getDamageRange() {
   const level = state.level;
-  const min = Math.floor(28 + level * 13 + level * level * 1.8);
-  const max = Math.floor(min + 24 + level * 7 + level * level * 0.9);
+  const targetMonster = getRecommendedMonsterLevel(level);
+  if (targetMonster === 0) return { min: 3, max: 5 };
+
+  const targetHp = getMonsterMaxHp(targetMonster);
+  const levelBonus = Math.max(0, level - getMinimumSwordLevelForMonster(targetMonster));
+  const bonusRate = 1 + levelBonus * 0.08;
+  const min = Math.floor((targetHp / 42) * bonusRate);
+  const max = Math.floor((targetHp / 35) * bonusRate);
   return { min, max };
 }
 
@@ -127,6 +146,24 @@ function getPlayerDamage() {
 function clampMonsterLevel(level) {
   if (!Number.isFinite(level)) return 1;
   return Math.min(MAX_MONSTER_LEVEL, Math.max(1, Math.round(level)));
+}
+
+function getRecommendedMonsterLevel(swordLevel) {
+  if (swordLevel >= 20) return 10;
+  if (swordLevel >= 18) return 9;
+  if (swordLevel >= 16) return 8;
+  if (swordLevel >= 14) return 7;
+  if (swordLevel >= 12) return 6;
+  if (swordLevel >= 10) return 5;
+  if (swordLevel >= 8) return 4;
+  if (swordLevel >= 6) return 3;
+  if (swordLevel >= 4) return 2;
+  if (swordLevel >= 1) return 1;
+  return 0;
+}
+
+function getMinimumSwordLevelForMonster(monsterLevel) {
+  return [0, 1, 4, 6, 8, 10, 12, 14, 16, 18, 20][monsterLevel] ?? 20;
 }
 
 function clampEnhanceTarget(level) {
@@ -154,7 +191,16 @@ function loadGame() {
     state.monsterLevel = Number.isFinite(parsed.monsterLevel)
       ? clampMonsterLevel(parsed.monsterLevel)
       : state.monsterLevel;
-    state.monsterHp = Number.isFinite(parsed.monsterHp) ? parsed.monsterHp : state.monsterHp;
+    state.unlockedMonsterLevel = Number.isFinite(parsed.unlockedMonsterLevel)
+      ? clampMonsterLevel(parsed.unlockedMonsterLevel)
+      : Math.max(1, state.monsterLevel);
+    state.monsterLevel = Math.min(state.monsterLevel, state.unlockedMonsterLevel);
+    state.balanceVersion = parsed.balanceVersion === BALANCE_VERSION ? BALANCE_VERSION : 0;
+    state.monsterHp =
+      state.balanceVersion === BALANCE_VERSION && Number.isFinite(parsed.monsterHp)
+        ? parsed.monsterHp
+        : 0;
+    state.balanceVersion = BALANCE_VERSION;
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -232,8 +278,12 @@ function render() {
   elements.monsterHpText.textContent = `HP ${state.monsterHp.toLocaleString("ko-KR")} / ${monsterMaxHp.toLocaleString("ko-KR")}`;
   elements.monsterReward.textContent = `보상 ${formatGold(getMonsterReward(state.monsterLevel))}`;
   elements.monsterHpBar.style.width = `${monsterProgress}%`;
+  elements.battleTimer.textContent = `남은 시간 ${Math.ceil(battleTimeLeft)}초`;
+  elements.battleTimeBar.style.width = `${Math.max(0, (battleTimeLeft / BATTLE_TIME_LIMIT) * 100)}%`;
   elements.attackPower.textContent = `공격력 ${damageRange.min.toLocaleString("ko-KR")} ~ ${damageRange.max.toLocaleString("ko-KR")}`;
-  elements.monsterStageInput.value = state.monsterLevel;
+  elements.monsterStageReadout.textContent = state.monsterLevel;
+  elements.monsterPrevButton.disabled = state.monsterLevel <= 1;
+  elements.monsterNextButton.disabled = state.monsterLevel >= state.unlockedMonsterLevel;
   elements.autoAttackButton.textContent = autoAttackTimer ? "자동 중지" : "자동 공격";
   elements.battleView.classList.toggle("auto", Boolean(autoAttackTimer));
 }
@@ -244,11 +294,13 @@ function showBattle() {
   elements.upgradeView.classList.add("hidden");
   elements.battleView.classList.remove("hidden");
   setBattleMessage(`${monsterNames[state.monsterLevel - 1]}이 나타났습니다.`);
+  startBattleTimer();
   render();
 }
 
 function showUpgrade() {
   stopAutoAttack();
+  stopBattleTimer();
   elements.battleView.classList.add("hidden");
   elements.upgradeView.classList.remove("hidden");
   render();
@@ -256,15 +308,20 @@ function showUpgrade() {
 
 function setMonsterStage(level) {
   const nextLevel = clampMonsterLevel(level);
+  if (nextLevel > state.unlockedMonsterLevel) {
+    setBattleMessage(`${state.unlockedMonsterLevel + 1}단계는 이전 몬스터를 처치해야 해금됩니다.`);
+    return;
+  }
   state.monsterLevel = nextLevel;
   state.monsterHp = getMonsterMaxHp(nextLevel);
+  restartBattleTimer();
   setBattleMessage(`${monsterNames[nextLevel - 1]} ${nextLevel}단계로 변경했습니다.`);
   saveGame();
   render();
 }
 
-function applyMonsterStageInput() {
-  setMonsterStage(Number(elements.monsterStageInput.value));
+function changeMonsterStage(delta) {
+  setMonsterStage(state.monsterLevel + delta);
 }
 
 function defeatMonster() {
@@ -272,11 +329,12 @@ function defeatMonster() {
   const earned = getMonsterReward(defeatedLevel);
   state.gold += earned;
 
-  if (state.monsterLevel < MAX_MONSTER_LEVEL) {
-    state.monsterLevel += 1;
+  if (defeatedLevel < MAX_MONSTER_LEVEL) {
+    state.unlockedMonsterLevel = Math.max(state.unlockedMonsterLevel, defeatedLevel + 1);
   }
 
   state.monsterHp = getMonsterMaxHp(state.monsterLevel);
+  restartBattleTimer();
   setBattleMessage(`${monsterNames[defeatedLevel - 1]} 처치! ${formatGold(earned)} 획득.`, "clear");
   addLog(`${defeatedLevel}단계 몬스터 처치: ${formatGold(earned)} 획득`, "success");
   saveGame();
@@ -285,6 +343,9 @@ function defeatMonster() {
 
 function attackMonster() {
   ensureMonsterHp();
+  const now = Date.now();
+  if (now - lastAttackAt < ATTACK_INTERVAL_MS) return;
+  lastAttackAt = now;
 
   const damage = Math.min(state.monsterHp, getPlayerDamage());
   state.monsterHp -= damage;
@@ -297,6 +358,46 @@ function attackMonster() {
   setBattleMessage(`${damage.toLocaleString("ko-KR")} 피해를 입혔습니다.`, "hit");
   saveGame();
   render();
+}
+
+function startBattleTimer() {
+  stopBattleTimer();
+  battleTimeLeft = BATTLE_TIME_LIMIT;
+  lastAttackAt = 0;
+  battleTimer = window.setInterval(() => {
+    battleTimeLeft = Math.max(0, battleTimeLeft - 0.25);
+    if (battleTimeLeft <= 0) {
+      resetCurrentMonsterByTimeout();
+      return;
+    }
+    render();
+  }, 250);
+}
+
+function restartBattleTimer() {
+  if (elements.battleView.classList.contains("hidden")) {
+    battleTimeLeft = BATTLE_TIME_LIMIT;
+    return;
+  }
+  startBattleTimer();
+}
+
+function stopBattleTimer() {
+  if (!battleTimer) return;
+  window.clearInterval(battleTimer);
+  battleTimer = null;
+}
+
+function resetCurrentMonsterByTimeout() {
+  stopAutoAttack();
+  stopBattleTimer();
+  state.monsterHp = getMonsterMaxHp(state.monsterLevel);
+  battleTimeLeft = BATTLE_TIME_LIMIT;
+  setBattleMessage(`시간 초과. ${monsterNames[state.monsterLevel - 1]}의 HP가 리셋되었습니다.`, "fail");
+  addLog(`${state.monsterLevel}단계 몬스터 시간 초과: HP 리셋`, "fail");
+  saveGame();
+  render();
+  startBattleTimer();
 }
 
 function stopAutoEnhance() {
@@ -368,7 +469,7 @@ function toggleAutoAttack() {
   }
 
   setBattleMessage("자동 공격을 시작했습니다.");
-  autoAttackTimer = window.setInterval(attackMonster, 450);
+  autoAttackTimer = window.setInterval(attackMonster, ATTACK_INTERVAL_MS);
   attackMonster();
   render();
 }
@@ -384,7 +485,7 @@ function handleFailure() {
     return;
   }
 
-  if (state.level >= 10 && Math.random() < 0.35) {
+  if (state.level >= 11 && Math.random() < 0.35) {
     state.destroyed = true;
     state.level = 0;
     setMessage("검이 파괴되었습니다. 초기화로 새 검을 시작하세요.", "fail");
@@ -392,7 +493,7 @@ function handleFailure() {
     return;
   }
 
-  if (state.level >= 5) {
+  if (state.level >= 11) {
     state.level -= 1;
     setMessage(`강화 실패. +${before}에서 +${state.level}로 하락했습니다.`, "fail");
     addLog(`+${before} 강화 실패: +${state.level}로 하락`, "fail");
@@ -429,11 +530,15 @@ function enhance() {
 function resetGame() {
   stopAutoAttack();
   stopAutoEnhance();
+  stopBattleTimer();
   state.gold = 150;
   state.level = 0;
   state.destroyed = false;
   state.monsterLevel = 1;
+  state.unlockedMonsterLevel = 1;
   state.monsterHp = getMonsterMaxHp(1);
+  state.balanceVersion = BALANCE_VERSION;
+  battleTimeLeft = BATTLE_TIME_LIMIT;
   setMessage("새 검을 받았습니다. 다시 강화해 보세요.");
   addLog("새 검으로 시작");
   saveGame();
@@ -448,8 +553,8 @@ elements.backButton.addEventListener("click", showUpgrade);
 elements.stayButton.addEventListener("click", showUpgrade);
 elements.attackButton.addEventListener("click", attackMonster);
 elements.autoAttackButton.addEventListener("click", toggleAutoAttack);
-elements.setMonsterStageButton.addEventListener("click", applyMonsterStageInput);
-elements.monsterStageInput.addEventListener("change", applyMonsterStageInput);
+elements.monsterPrevButton.addEventListener("click", () => changeMonsterStage(-1));
+elements.monsterNextButton.addEventListener("click", () => changeMonsterStage(1));
 
 loadGame();
 ensureMonsterHp();

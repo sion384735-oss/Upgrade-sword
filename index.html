@@ -64,13 +64,20 @@
           </div>
           <div class="battle-meta">
             <span id="attackPower">공격력 0 ~ 0</span>
+            <span id="battleTimer">남은 시간 0초</span>
+          </div>
+          <div class="time-bar">
+            <div id="battleTimeBar"></div>
           </div>
         </div>
 
         <div class="monster-settings" aria-label="몬스터 단계 설정">
-          <label for="monsterStageInput">몬스터 단계</label>
-          <input id="monsterStageInput" type="number" min="1" max="10" value="1" />
-          <button class="secondary" id="setMonsterStageButton" type="button">설정</button>
+          <button class="secondary stage-step" id="monsterPrevButton" type="button">◀</button>
+          <div class="stage-readout">
+            <span>몬스터 단계</span>
+            <strong id="monsterStageReadout">1</strong>
+          </div>
+          <button class="secondary stage-step" id="monsterNextButton" type="button">▶</button>
         </div>
 
         <div class="notice" id="battleMessage">몬스터를 처치하면 골드를 얻습니다.</div>

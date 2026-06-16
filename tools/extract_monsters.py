@@ -4,7 +4,7 @@ import os
 from extract_swords import read_png, write_png
 
 
-def trim_cell(pixels, padding=6, bottom_ratio=0.82):
+def trim_cell(pixels, padding=18, bottom_ratio=0.82):
     height = len(pixels)
     width = len(pixels[0])
     left = padding
