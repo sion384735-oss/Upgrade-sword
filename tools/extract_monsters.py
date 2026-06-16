@@ -38,4 +38,4 @@ def extract_monsters(source, output_dir, bottom_ratio=0.82):
 
 
 if __name__ == "__main__":
-    extract_monsters("assets/monsters/generated-monster-sheet.png", "assets/monsters", bottom_ratio=1)
+    extract_monsters("assets/monsters/generated-monster-sheet.png", "assets/monsters", bottom_ratio=0.96)
