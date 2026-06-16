@@ -13,6 +13,20 @@
   --accent: #77a7ff;
 }
 
+body.light {
+  color-scheme: light;
+  --bg: #edf1f7;
+  --panel: #ffffff;
+  --panel-soft: #e9edf5;
+  --text: #151922;
+  --muted: #5f6878;
+  --line: #cfd6e3;
+  --gold: #b87912;
+  --danger: #d93636;
+  --success: #248a45;
+  --accent: #2f68d8;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -26,6 +40,12 @@ body {
   color: var(--text);
   font-family:
     Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body.light {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(47, 104, 216, 0.18), transparent 28rem),
+    linear-gradient(135deg, #f8fafc, var(--bg));
 }
 
 button {
@@ -47,6 +67,30 @@ button:disabled {
   width: min(72rem, calc(100% - 2rem));
   min-height: calc(100vh - 2rem);
   margin: 1rem auto;
+}
+
+.destroyed-banner {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  z-index: 20;
+  padding: 0.4rem 1.2rem;
+  color: #ff3d3d;
+  font-size: clamp(3rem, 12vw, 8rem);
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow:
+    0 0.15rem 0 #3d0000,
+    0 0 1.5rem rgba(255, 61, 61, 0.9),
+    0 0 3rem rgba(255, 61, 61, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.55) rotate(-4deg);
+}
+
+.destroyed-banner.show {
+  animation: destroyed-flash 1.15s ease-out both;
 }
 
 .stage,
@@ -94,6 +138,11 @@ h1 {
   font-size: clamp(2rem, 6vw, 4.75rem);
   line-height: 1;
   word-break: keep-all;
+}
+
+.battle-view h1 {
+  font-size: clamp(1.6rem, 4vw, 3rem);
+  line-height: 1.05;
 }
 
 .icon-button,
@@ -178,8 +227,9 @@ h1 {
 
 .monster-stage {
   position: absolute;
-  right: 10%;
-  bottom: 12%;
+  right: 1rem;
+  top: 1rem;
+  bottom: auto;
   min-width: 7rem;
   border: 1px solid rgba(119, 167, 255, 0.45);
   border-radius: 8px;
@@ -204,12 +254,12 @@ h1 {
 
 .sword {
   position: relative;
-  width: min(19rem, 70vw);
-  height: min(23rem, 76vw);
+  width: min(15.2rem, 56vw);
+  height: min(18.4rem, 61vw);
   background-image: url("assets/swords/cutouts/sword-01.png");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: contain;
+  background-size: auto 92%;
   filter: drop-shadow(0 1.2rem 1.4rem rgba(0, 0, 0, 0.34));
   transform: scale(1);
   transition: transform 160ms ease, filter 160ms ease;
@@ -217,19 +267,19 @@ h1 {
 
 .attack-sword {
   position: absolute;
-  left: 4%;
-  top: 13%;
+  left: 2%;
+  top: 9%;
   z-index: 3;
-  width: min(13rem, 42vw);
-  height: min(16rem, 48vw);
+  width: min(15rem, 46vw);
+  height: min(18rem, 54vw);
   pointer-events: none;
   opacity: 0;
   background-image: url("assets/swords/cutouts/sword-01.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  filter: drop-shadow(0 0 1rem rgba(119, 167, 255, 0.85));
-  transform: translate(-40%, 20%) rotate(-44deg) scale(var(--attack-scale, 1));
+  filter: drop-shadow(0 0 1.1rem rgba(119, 167, 255, 0.9));
+  transform: translate(-50%, 26%) rotate(58deg) scale(var(--attack-scale, 1));
 }
 
 .attack-sword.slash {
@@ -274,6 +324,22 @@ h1 {
   text-shadow: 0 0.25rem 0.7rem rgba(0, 0, 0, 0.75);
   animation: coin-value-rise 900ms ease-out both;
   transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.damage-number {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  z-index: 5;
+  color: #ff7777;
+  font-size: clamp(1.5rem, 4vw, 2.4rem);
+  font-weight: 900;
+  text-shadow:
+    0 0.2rem 0 #5c1111,
+    0 0 0.75rem rgba(255, 107, 107, 0.75);
+  animation: damage-pop 620ms ease-out both;
+  transform: translateX(calc(-50% + var(--damage-x, 0rem)));
   pointer-events: none;
 }
 
@@ -423,7 +489,7 @@ h1 {
 }
 
 .enhance-settings {
-  grid-template-columns: auto minmax(4rem, 1fr) auto;
+  grid-template-columns: 4.75rem 1fr 4.75rem minmax(8rem, 1fr);
 }
 
 .stage-step {
@@ -492,6 +558,17 @@ h1 {
   gap: 1rem;
   padding: 1rem;
   min-width: 0;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.settings-row .secondary {
+  min-height: 2.9rem;
+  padding: 0 0.75rem;
 }
 
 .stats-grid {
@@ -619,7 +696,7 @@ h1 {
 @keyframes sword-slash {
   0% {
     opacity: 0;
-    transform: translate(-55%, 22%) rotate(-48deg) scale(calc(var(--attack-scale, 1) * 0.86));
+    transform: translate(-58%, 34%) rotate(58deg) scale(calc(var(--attack-scale, 1) * 0.9));
   }
 
   24% {
@@ -628,12 +705,12 @@ h1 {
 
   58% {
     opacity: 1;
-    transform: translate(88%, -4%) rotate(28deg) scale(calc(var(--attack-scale, 1) * 1.18));
+    transform: translate(92%, -6%) rotate(58deg) scale(calc(var(--attack-scale, 1) * 1.14));
   }
 
   100% {
     opacity: 0;
-    transform: translate(118%, -16%) rotate(40deg) scale(calc(var(--attack-scale, 1) * 1.05));
+    transform: translate(128%, -22%) rotate(58deg) scale(calc(var(--attack-scale, 1) * 1.02));
   }
 }
 
@@ -674,6 +751,44 @@ h1 {
   }
 }
 
+@keyframes damage-pop {
+  0% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--damage-x, 0rem)), 0.8rem) scale(0.75);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--damage-x, 0rem)), -0.2rem) scale(1.15);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--damage-x, 0rem)), -3.4rem) scale(1);
+  }
+}
+
+@keyframes destroyed-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(-8deg);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08) rotate(2deg);
+  }
+
+  38% {
+    transform: translate(-50%, -50%) scale(0.98) rotate(-1deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.22) rotate(0deg);
+  }
+}
+
 @media (max-width: 800px) {
   .game {
     grid-template-columns: 1fr;
@@ -693,7 +808,11 @@ h1 {
   }
 
   .enhance-settings {
-    grid-template-columns: 1fr;
+    grid-template-columns: 4.25rem 1fr 4.25rem;
+  }
+
+  .enhance-settings #autoEnhanceButton {
+    grid-column: 1 / -1;
   }
 
   .monster-settings {
@@ -711,6 +830,7 @@ h1 {
 
   .monster-stage {
     right: 1rem;
-    bottom: 9%;
+    top: 1rem;
+    bottom: auto;
   }
 }

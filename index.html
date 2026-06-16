@@ -8,6 +8,7 @@
   </head>
   <body>
     <main class="game">
+      <div class="destroyed-banner" id="destroyedBanner" aria-hidden="true">DESTROYED</div>
       <section class="stage upgrade-view" id="upgradeView" aria-label="검 강화 상태">
         <div class="topbar">
           <div>
@@ -28,8 +29,12 @@
         <div class="notice" id="message">강화를 눌러 검을 성장시키세요.</div>
 
         <div class="enhance-settings" aria-label="자동 강화 설정">
-          <label for="enhanceTargetInput">목표 강화</label>
-          <input id="enhanceTargetInput" type="number" min="1" max="20" value="10" />
+          <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
+          <div class="stage-readout">
+            <span>목표 강화</span>
+            <strong id="enhanceTargetReadout">10</strong>
+          </div>
+          <button class="secondary stage-step" id="enhanceTargetNextButton" type="button">▶</button>
           <button class="secondary" id="autoEnhanceButton" type="button">자동 강화</button>
         </div>
 
@@ -92,6 +97,11 @@
       </section>
 
       <aside class="panel" aria-label="게임 정보">
+        <div class="settings-row" aria-label="환경 설정">
+          <button class="secondary" id="soundToggleButton" type="button">사운드 ON</button>
+          <button class="secondary" id="themeToggleButton" type="button">화이트 모드</button>
+        </div>
+
         <div class="stats-grid">
           <div class="stat">
             <span>골드</span>
@@ -110,6 +120,10 @@
             <strong id="breakChance">0%</strong>
           </div>
           <div class="stat">
+            <span>하락 확률</span>
+            <strong id="fallChance">0%</strong>
+          </div>
+          <div class="stat">
             <span>최고 강화</span>
             <strong id="best">+0</strong>
           </div>
@@ -125,7 +139,7 @@
 
         <div class="progress-block">
           <div class="progress-label">
-            <span>목표 +20</span>
+            <span>목표 +30</span>
             <span id="progressText">0%</span>
           </div>
           <div class="progress">

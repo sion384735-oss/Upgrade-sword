@@ -1,4 +1,4 @@
-const MAX_LEVEL = 20;
+const MAX_LEVEL = 30;
 const MAX_MONSTER_LEVEL = 10;
 const BATTLE_TIME_LIMIT = 20;
 const ATTACK_INTERVAL_MS = 450;
@@ -13,6 +13,9 @@ const state = {
   monsterLevel: 1,
   unlockedMonsterLevel: 1,
   monsterHp: 0,
+  enhanceTarget: 10,
+  soundEnabled: true,
+  theme: "dark",
   balanceVersion: BALANCE_VERSION,
 };
 
@@ -21,11 +24,13 @@ let autoEnhanceTimer = null;
 let battleTimer = null;
 let battleTimeLeft = BATTLE_TIME_LIMIT;
 let lastAttackAt = 0;
+let audioContext = null;
 
 const elements = {
   stage: document.querySelector(".stage"),
   upgradeView: document.querySelector("#upgradeView"),
   battleView: document.querySelector("#battleView"),
+  destroyedBanner: document.querySelector("#destroyedBanner"),
   sword: document.querySelector("#sword"),
   swordName: document.querySelector("#swordName"),
   levelBadge: document.querySelector("#levelBadge"),
@@ -33,6 +38,7 @@ const elements = {
   cost: document.querySelector("#cost"),
   chance: document.querySelector("#chance"),
   breakChance: document.querySelector("#breakChance"),
+  fallChance: document.querySelector("#fallChance"),
   best: document.querySelector("#best"),
   monsterLevel: document.querySelector("#monsterLevel"),
   message: document.querySelector("#message"),
@@ -42,7 +48,11 @@ const elements = {
   log: document.querySelector("#log"),
   enhanceButton: document.querySelector("#enhanceButton"),
   autoEnhanceButton: document.querySelector("#autoEnhanceButton"),
-  enhanceTargetInput: document.querySelector("#enhanceTargetInput"),
+  enhanceTargetPrevButton: document.querySelector("#enhanceTargetPrevButton"),
+  enhanceTargetNextButton: document.querySelector("#enhanceTargetNextButton"),
+  enhanceTargetReadout: document.querySelector("#enhanceTargetReadout"),
+  soundToggleButton: document.querySelector("#soundToggleButton"),
+  themeToggleButton: document.querySelector("#themeToggleButton"),
   workButton: document.querySelector("#workButton"),
   resetButton: document.querySelector("#resetButton"),
   backButton: document.querySelector("#backButton"),
@@ -93,23 +103,111 @@ const monsterRewardTable = [0, 100, 900, 3000, 9000, 25000, 70000, 180000, 45000
 const monsterHpTable = monsterRewardTable.map((reward) => reward * 6);
 
 function getCost(level) {
-  return Math.floor(80 + level * level * 35 + level * 45);
+  if (level === 0) return 50;
+  const earlyCosts = [0, 250, 520, 950, 1600, 2500, 3700, 5200, 7000];
+  if (level <= 8) return earlyCosts[level];
+  return Math.floor(180 + level * 140 + level * level * 95 + level * level * level * 8);
+}
+
+function getAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioContext.state === "suspended") audioContext.resume();
+  return audioContext;
+}
+
+function playTone(frequency, duration = 0.12, type = "sine", volume = 0.08, delay = 0) {
+  const context = getAudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const start = context.currentTime + delay;
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.03);
+}
+
+function playSound(name) {
+  if (!state.soundEnabled) return;
+
+  const patterns = {
+    hit: () => {
+      playTone(130, 0.08, "sawtooth", 0.08);
+      playTone(70, 0.1, "square", 0.04, 0.02);
+    },
+    gold: () => {
+      playTone(880, 0.08, "triangle", 0.07);
+      playTone(1175, 0.1, "triangle", 0.06, 0.08);
+      playTone(1568, 0.12, "triangle", 0.05, 0.16);
+    },
+    enhance: () => {
+      playTone(392, 0.08, "sine", 0.055);
+      playTone(523, 0.1, "sine", 0.055, 0.07);
+    },
+    success: () => {
+      playTone(659, 0.08, "triangle", 0.07);
+      playTone(988, 0.14, "triangle", 0.075, 0.08);
+    },
+    fall: () => {
+      playTone(330, 0.12, "sawtooth", 0.065);
+      playTone(196, 0.16, "sawtooth", 0.055, 0.09);
+    },
+    destroy: () => {
+      playTone(120, 0.22, "square", 0.09);
+      playTone(72, 0.28, "sawtooth", 0.08, 0.08);
+    },
+  };
+  patterns[name]?.();
+}
+
+function applyTheme() {
+  document.body.classList.toggle("light", state.theme === "light");
 }
 
 function getChance(level) {
-  return Math.max(12, Math.floor(95 - level * 4.2));
+  if (level === 0) return 100;
+  if (level >= 19) return 5;
+  if (level >= 18) return 7;
+  if (level >= 17) return 9;
+  if (level >= 16) return 12;
+  if (level >= 15) return 15;
+  return Math.max(8, Math.floor(82 - level * 3.7));
 }
 
 function getBreakChance(level) {
-  if (level >= 15) return 55;
-  if (level >= 11) return 35;
-  return 0;
+  const breakChances = {
+    11: 1,
+    12: 1,
+    13: 3,
+    14: 5,
+    15: 10,
+    16: 18,
+    17: 24,
+    18: 30,
+    19: 40,
+  };
+  return breakChances[level] ?? 0;
+}
+
+function getFallChance(level) {
+  if (level <= 10) return 0;
+  if (level <= 12) return 12;
+  if (level <= 14) return 15;
+  if (level <= 16) return 18;
+  if (level <= 18) return 22;
+  return 25;
 }
 
 function getRiskText(level) {
   if (level <= 10) return "실패해도 단계가 유지됩니다.";
-  if (level < 15) return "실패하면 35% 확률로 검이 파괴됩니다.";
-  return "실패하면 55% 확률로 검이 파괴됩니다.";
+  return `실패하면 파괴 ${getBreakChance(level)}%, 하락 ${getFallChance(level)}%가 적용됩니다.`;
 }
 
 function getSwordTitle(level) {
@@ -118,7 +216,7 @@ function getSwordTitle(level) {
 }
 
 function getSwordImagePath(level) {
-  const imageLevel = Math.min(20, level + 1);
+  const imageLevel = Math.max(1, Math.min(30, level));
   return `assets/swords/cutouts/sword-${String(imageLevel).padStart(2, "0")}.png`;
 }
 
@@ -204,6 +302,12 @@ function loadGame() {
       ? clampMonsterLevel(parsed.unlockedMonsterLevel)
       : Math.max(1, state.monsterLevel);
     state.monsterLevel = Math.min(state.monsterLevel, state.unlockedMonsterLevel);
+    state.enhanceTarget = Number.isFinite(parsed.enhanceTarget)
+      ? clampEnhanceTarget(parsed.enhanceTarget)
+      : state.enhanceTarget;
+    state.soundEnabled =
+      typeof parsed.soundEnabled === "boolean" ? parsed.soundEnabled : state.soundEnabled;
+    state.theme = parsed.theme === "light" ? "light" : "dark";
     state.balanceVersion = parsed.balanceVersion === BALANCE_VERSION ? BALANCE_VERSION : 0;
     state.monsterHp =
       state.balanceVersion === BALANCE_VERSION && Number.isFinite(parsed.monsterHp)
@@ -254,6 +358,7 @@ function addLog(text, type = "") {
 
 function render() {
   ensureMonsterHp();
+  applyTheme();
 
   const cost = getCost(state.level);
   const chance = getChance(state.level);
@@ -272,6 +377,7 @@ function render() {
   elements.cost.textContent = isMax ? "완료" : formatGold(cost);
   elements.chance.textContent = isMax ? "100%" : `${chance}%`;
   elements.breakChance.textContent = isMax ? "0%" : `${getBreakChance(state.level)}%`;
+  elements.fallChance.textContent = isMax ? "0%" : `${getFallChance(state.level)}%`;
   elements.best.textContent = `+${state.best}`;
   elements.monsterLevel.textContent = `${state.monsterLevel} / ${MAX_MONSTER_LEVEL}`;
   elements.attackStat.textContent = `${damageRange.min.toLocaleString("ko-KR")} ~ ${damageRange.max.toLocaleString("ko-KR")}`;
@@ -280,7 +386,12 @@ function render() {
   elements.riskText.textContent = isMax ? "최고 단계에 도달했습니다." : getRiskText(state.level);
   elements.enhanceButton.disabled = isMax || state.gold < cost;
   elements.enhanceButton.textContent = isMax ? "최고 강화" : "강화하기";
+  elements.enhanceTargetReadout.textContent = `+${state.enhanceTarget}`;
+  elements.enhanceTargetPrevButton.disabled = state.enhanceTarget <= 1;
+  elements.enhanceTargetNextButton.disabled = state.enhanceTarget >= MAX_LEVEL;
   elements.autoEnhanceButton.textContent = autoEnhanceTimer ? "자동 중지" : "자동 강화";
+  elements.soundToggleButton.textContent = state.soundEnabled ? "사운드 ON" : "사운드 OFF";
+  elements.themeToggleButton.textContent = state.theme === "light" ? "다크 모드" : "화이트 모드";
   elements.upgradeView.classList.toggle("auto", Boolean(autoEnhanceTimer));
   elements.upgradeView.classList.toggle("max", isMax);
 
@@ -340,6 +451,7 @@ function defeatMonster() {
   const defeatedLevel = state.monsterLevel;
   const earned = getMonsterReward(defeatedLevel);
   state.gold += earned;
+  playSound("gold");
   playCoinDrop(earned);
 
   if (defeatedLevel < MAX_MONSTER_LEVEL) {
@@ -358,20 +470,34 @@ function attackMonster() {
   ensureMonsterHp();
   const now = Date.now();
   if (now - lastAttackAt < ATTACK_INTERVAL_MS) return;
-  lastAttackAt = now;
+  performAttack(now);
+}
+
+function performAttack(timestamp = Date.now()) {
+  ensureMonsterHp();
+  lastAttackAt = timestamp;
+  playSound("hit");
   playSwordAttackMotion();
 
   const damage = Math.min(state.monsterHp, getPlayerDamage());
   state.monsterHp -= damage;
+  playDamageNumber(damage);
 
   if (state.monsterHp <= 0) {
     defeatMonster();
     return;
   }
 
-  setBattleMessage(`${damage.toLocaleString("ko-KR")} 피해를 입혔습니다.`, "hit");
+  elements.battleView.classList.remove("hit");
+  void elements.battleView.offsetWidth;
+  elements.battleView.classList.add("hit");
+  window.setTimeout(() => elements.battleView.classList.remove("hit"), 220);
   saveGame();
   render();
+}
+
+function runAutoAttackStep() {
+  performAttack(Date.now());
 }
 
 function playSwordAttackMotion() {
@@ -399,6 +525,16 @@ function playCoinDrop(amount) {
     value.remove();
     elements.coinLayer.querySelectorAll(".coin").forEach((coin) => coin.remove());
   }, 1300);
+}
+
+function playDamageNumber(damage) {
+  const damageText = document.createElement("div");
+  damageText.className = "damage-number";
+  damageText.textContent = `-${damage.toLocaleString("ko-KR")}`;
+  damageText.style.setProperty("--damage-x", `${Math.round(Math.random() * 5 - 2.5)}rem`);
+  elements.coinLayer.append(damageText);
+
+  window.setTimeout(() => damageText.remove(), 700);
 }
 
 function startBattleTimer() {
@@ -449,8 +585,7 @@ function stopAutoEnhance() {
 }
 
 function runAutoEnhanceStep() {
-  const targetLevel = clampEnhanceTarget(Number(elements.enhanceTargetInput.value));
-  elements.enhanceTargetInput.value = targetLevel;
+  const targetLevel = state.enhanceTarget;
 
   if (state.level >= targetLevel) {
     stopAutoEnhance();
@@ -475,8 +610,7 @@ function toggleAutoEnhance() {
     return;
   }
 
-  const targetLevel = clampEnhanceTarget(Number(elements.enhanceTargetInput.value));
-  elements.enhanceTargetInput.value = targetLevel;
+  const targetLevel = state.enhanceTarget;
 
   if (state.level >= targetLevel) {
     setMessage(`이미 목표 +${targetLevel} 이상입니다.`);
@@ -486,6 +620,24 @@ function toggleAutoEnhance() {
   setMessage(`+${targetLevel}까지 자동 강화를 시작합니다.`);
   autoEnhanceTimer = window.setInterval(runAutoEnhanceStep, 650);
   runAutoEnhanceStep();
+  render();
+}
+
+function changeEnhanceTarget(delta) {
+  state.enhanceTarget = clampEnhanceTarget(state.enhanceTarget + delta);
+  saveGame();
+  render();
+}
+
+function toggleSound() {
+  state.soundEnabled = !state.soundEnabled;
+  saveGame();
+  render();
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "light" ? "dark" : "light";
+  saveGame();
   render();
 }
 
@@ -504,32 +656,28 @@ function toggleAutoAttack() {
   }
 
   setBattleMessage("자동 공격을 시작했습니다.");
-  autoAttackTimer = window.setInterval(attackMonster, ATTACK_INTERVAL_MS);
-  attackMonster();
+  lastAttackAt = 0;
+  runAutoAttackStep();
+  autoAttackTimer = window.setInterval(runAutoAttackStep, ATTACK_INTERVAL_MS);
   render();
 }
 
 function handleFailure() {
   const before = state.level;
 
-  if (state.level >= 15 && Math.random() < 0.55) {
+  if (Math.random() * 100 < getBreakChance(state.level)) {
     state.destroyed = true;
     state.level = 0;
-    setMessage("검이 산산조각 났습니다. +0 검으로 다시 강화할 수 있습니다.", "fail");
-    addLog(`+${before} 강화 실패: 검 파괴`, "fail");
+    playSound("destroy");
+    showDestroyedBanner();
+    setMessage("강화 실패로 검이 +0 상태로 복구되었습니다. 다시 강화할 수 있습니다.", "fail");
+    addLog(`+${before} 강화 실패: +0 복구`, "fail");
     return;
   }
 
-  if (state.level >= 11 && Math.random() < 0.35) {
-    state.destroyed = true;
-    state.level = 0;
-    setMessage("검이 파괴되었습니다. +0 검으로 다시 강화할 수 있습니다.", "fail");
-    addLog(`+${before} 강화 실패: 검 파괴`, "fail");
-    return;
-  }
-
-  if (state.level >= 11) {
+  if (Math.random() * 100 < getFallChance(state.level)) {
     state.level -= 1;
+    playSound("fall");
     setMessage(`강화 실패. +${before}에서 +${state.level}로 하락했습니다.`, "fail");
     addLog(`+${before} 강화 실패: +${state.level}로 하락`, "fail");
     return;
@@ -545,6 +693,7 @@ function enhance() {
 
   state.gold -= cost;
   state.destroyed = false;
+  playSound("enhance");
   const before = state.level;
   const chance = getChance(state.level);
   const success = Math.random() * 100 < chance;
@@ -552,6 +701,7 @@ function enhance() {
   if (success) {
     state.level += 1;
     state.best = Math.max(state.best, state.level);
+    playSound("success");
     const maxText = state.level >= MAX_LEVEL ? " 최고 강화에 도달했습니다." : "";
     setMessage(`강화 성공! +${before}에서 +${state.level}이 되었습니다.${maxText}`, "success");
     addLog(`+${before} -> +${state.level} 성공`, "success");
@@ -561,6 +711,13 @@ function enhance() {
 
   saveGame();
   render();
+}
+
+function showDestroyedBanner() {
+  elements.destroyedBanner.classList.remove("show");
+  void elements.destroyedBanner.offsetWidth;
+  elements.destroyedBanner.classList.add("show");
+  window.setTimeout(() => elements.destroyedBanner.classList.remove("show"), 1200);
 }
 
 function resetGame() {
@@ -573,6 +730,7 @@ function resetGame() {
   state.monsterLevel = 1;
   state.unlockedMonsterLevel = 1;
   state.monsterHp = getMonsterMaxHp(1);
+  state.enhanceTarget = 10;
   state.balanceVersion = BALANCE_VERSION;
   battleTimeLeft = BATTLE_TIME_LIMIT;
   setMessage("새 검을 받았습니다. 다시 강화해 보세요.");
@@ -583,6 +741,10 @@ function resetGame() {
 
 elements.enhanceButton.addEventListener("click", enhance);
 elements.autoEnhanceButton.addEventListener("click", toggleAutoEnhance);
+elements.enhanceTargetPrevButton.addEventListener("click", () => changeEnhanceTarget(-1));
+elements.enhanceTargetNextButton.addEventListener("click", () => changeEnhanceTarget(1));
+elements.soundToggleButton.addEventListener("click", toggleSound);
+elements.themeToggleButton.addEventListener("click", toggleTheme);
 elements.workButton.addEventListener("click", showBattle);
 elements.resetButton.addEventListener("click", resetGame);
 elements.backButton.addEventListener("click", showUpgrade);
