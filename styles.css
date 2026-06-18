@@ -6,6 +6,14 @@
   --text: #f4f5f7;
   --muted: #a6adbb;
   --line: #343946;
+  --stage-bg: rgba(27, 29, 35, 0.88);
+  --surface-bg: rgba(36, 40, 50, 0.68);
+  --soft-bg: rgba(36, 40, 50, 0.72);
+  --deep-bg: rgba(16, 17, 20, 0.55);
+  --deeper-bg: rgba(13, 14, 17, 0.5);
+  --subtle-line: rgba(255, 255, 255, 0.07);
+  --success-text: #d9ffe2;
+  --fail-text: #ffdede;
   --gold: #f6c85f;
   --steel: #dce4ef;
   --danger: #ff6b6b;
@@ -21,6 +29,14 @@ body.light {
   --text: #151922;
   --muted: #5f6878;
   --line: #cfd6e3;
+  --stage-bg: rgba(255, 255, 255, 0.94);
+  --surface-bg: rgba(247, 249, 253, 0.92);
+  --soft-bg: rgba(233, 237, 245, 0.94);
+  --deep-bg: rgba(255, 255, 255, 0.72);
+  --deeper-bg: rgba(247, 249, 253, 0.9);
+  --subtle-line: rgba(21, 25, 34, 0.1);
+  --success-text: #155c2c;
+  --fail-text: #9b1c1c;
   --gold: #b87912;
   --danger: #d93636;
   --success: #248a45;
@@ -97,7 +113,7 @@ button:disabled {
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(27, 29, 35, 0.88);
+  background: var(--stage-bg);
   box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.24);
 }
 
@@ -159,6 +175,19 @@ h1 {
   font-size: 0.9rem;
 }
 
+.top-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+}
+
+.compact-action {
+  min-height: auto;
+  padding: 0.65rem 0.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .sword-area {
   position: relative;
   display: grid;
@@ -187,7 +216,7 @@ h1 {
   position: relative;
   width: min(22rem, 78vw);
   height: min(22rem, 78vw);
-  background-image: url("assets/monsters/monster-01.png");
+  background-image: url("assets/monsters/stages-20-transparent/monster-stage-01.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -241,6 +270,11 @@ h1 {
   text-align: center;
 }
 
+body.light .monster-stage,
+body.light .level-badge {
+  background: rgba(255, 255, 255, 0.86);
+}
+
 .glow {
   position: absolute;
   width: 13rem;
@@ -256,10 +290,10 @@ h1 {
   position: relative;
   width: min(15.2rem, 56vw);
   height: min(18.4rem, 61vw);
-  background-image: url("assets/swords/cutouts/sword-01.png");
+  background-image: url("assets/swords/stages-30-progressive-transparent/sword-stage-01.png");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: auto 92%;
+  background-size: auto 112%;
   filter: drop-shadow(0 1.2rem 1.4rem rgba(0, 0, 0, 0.34));
   transform: scale(1);
   transition: transform 160ms ease, filter 160ms ease;
@@ -274,7 +308,7 @@ h1 {
   height: min(18rem, 54vw);
   pointer-events: none;
   opacity: 0;
-  background-image: url("assets/swords/cutouts/sword-01.png");
+  background-image: url("assets/swords/stages-30-progressive-transparent/sword-stage-01.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -325,6 +359,31 @@ h1 {
   animation: coin-value-rise 900ms ease-out both;
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.item-drop {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  color: var(--gold);
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.85);
+  transform: translateX(-50%);
+  animation: item-drop-pop 1.45s ease-out both;
+  pointer-events: none;
+}
+
+.item-drop .item-object {
+  width: 4rem;
+  filter:
+    drop-shadow(0 0.35rem 0.5rem rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 1rem rgba(246, 200, 95, 0.5));
 }
 
 .damage-number {
@@ -412,16 +471,206 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 1rem;
-  background: rgba(16, 17, 20, 0.55);
+  background: var(--deep-bg);
   color: var(--muted);
   line-height: 1.45;
+}
+
+.inventory-block,
+.drop-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: var(--deep-bg);
+}
+
+.inventory-block h2,
+.drop-block h2 {
+  margin-bottom: 0.6rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.inventory-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.inventory-item {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon title count"
+    "icon desc desc";
+  align-items: center;
+  column-gap: 0.6rem;
+  min-height: 5.1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem;
+  background: var(--soft-bg);
+  text-align: left;
+}
+
+.inventory-item.selected {
+  border-color: var(--gold);
+  background: rgba(246, 200, 95, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(246, 200, 95, 0.2);
+}
+
+.inventory-item strong,
+.inventory-item em {
+  font-style: normal;
+  font-weight: 900;
+}
+
+.inventory-item strong {
+  grid-area: title;
+  min-width: 0;
+}
+
+.inventory-item .item-description {
+  grid-area: desc;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.inventory-item em {
+  grid-area: count;
+  color: var(--gold);
+  font-size: 0.9rem;
+}
+
+.item-object {
+  position: relative;
+  grid-area: icon;
+  display: block;
+  width: 2.1rem;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 0.25rem 0.45rem rgba(0, 0, 0, 0.35));
+}
+
+.item-object::before,
+.item-object::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.item-object.protect::before {
+  border: 0.18rem solid #8fb9ff;
+  border-radius: 0.95rem 0.95rem 1.2rem 1.2rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.75), transparent 35%),
+    linear-gradient(180deg, #3159a8, #172d62);
+  clip-path: polygon(50% 0, 92% 16%, 82% 78%, 50% 100%, 18% 78%, 8% 16%);
+}
+
+.item-object.protect::after {
+  left: 50%;
+  top: 22%;
+  width: 0.3rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: #dce9ff;
+  box-shadow: -0.42rem 0.45rem 0 -0.04rem #dce9ff, 0.42rem 0.45rem 0 -0.04rem #dce9ff;
+  transform: translateX(-50%);
+}
+
+.item-object.fallProtect::before {
+  border: 0.18rem solid #7be4b1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.85), transparent 22%),
+    linear-gradient(135deg, #1d8b62, #0e3f39);
+}
+
+.item-object.fallProtect::after {
+  left: 50%;
+  top: 18%;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-left: 0.26rem solid #dfffee;
+  border-bottom: 0.26rem solid #dfffee;
+  transform: translateX(-50%) rotate(-45deg);
+}
+
+.item-object.boost5::before,
+.item-object.boost10::before {
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.9), transparent 20%),
+    linear-gradient(135deg, #ffe08a, #b86b18);
+  box-shadow: inset 0 0 0 0.18rem rgba(255, 255, 255, 0.45);
+}
+
+.item-object.boost10::before {
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.9), transparent 20%),
+    linear-gradient(135deg, #f0a5ff, #6944d8);
+}
+
+.item-object.boost5::after,
+.item-object.boost10::after {
+  display: grid;
+  place-items: center;
+  color: #2d1b00;
+  font-size: 0.76rem;
+  font-weight: 1000;
+}
+
+.item-object.boost5::after {
+  content: "+5";
+}
+
+.item-object.boost10::after {
+  content: "+10";
+  color: white;
+  font-size: 0.68rem;
+}
+
+.item-object.empty-slot::before {
+  border: 0.16rem dashed var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.drop-rate-table {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--deeper-bg);
+}
+
+.drop-rate-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.drop-rate-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--subtle-line);
+}
+
+.drop-rate-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.drop-rate-table td:last-child {
+  color: var(--gold);
+  font-weight: 900;
+  text-align: right;
 }
 
 .battle-status {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 1rem;
-  background: rgba(16, 17, 20, 0.55);
+  background: var(--deep-bg);
 }
 
 .battle-meta {
@@ -431,6 +680,10 @@ h1 {
   margin-top: 0.65rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.battle-meta span {
+  white-space: nowrap;
 }
 
 .hp-bar,
@@ -470,7 +723,7 @@ h1 {
 }
 
 .battle-controls {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
 }
 
 .monster-settings,
@@ -481,7 +734,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.75rem;
-  background: rgba(16, 17, 20, 0.48);
+  background: var(--deep-bg);
 }
 
 .monster-settings {
@@ -504,7 +757,7 @@ h1 {
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(13, 14, 17, 0.65);
+  background: var(--deeper-bg);
 }
 
 .stage-readout span {
@@ -562,13 +815,15 @@ h1 {
 
 .settings-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
 }
 
 .settings-row .secondary {
-  min-height: 2.9rem;
-  padding: 0 0.75rem;
+  min-height: 2.55rem;
+  padding: 0 0.45rem;
+  font-size: 0.86rem;
+  white-space: nowrap;
 }
 
 .stats-grid {
@@ -581,7 +836,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.9rem;
-  background: rgba(36, 40, 50, 0.68);
+  background: var(--surface-bg);
 }
 
 .stat span,
@@ -597,8 +852,14 @@ h1 {
   font-size: 1.4rem;
 }
 
+#attackStat {
+  font-size: 1.15rem;
+  white-space: nowrap;
+}
+
 .progress-block,
-.rates {
+.rates,
+.probability-block {
   border-top: 1px solid var(--line);
   padding-top: 1rem;
 }
@@ -624,9 +885,52 @@ h1 {
   transition: width 180ms ease;
 }
 
-.rates h2 {
+.rates h2,
+.probability-block h2 {
   margin-bottom: 0.45rem;
   font-size: 1rem;
+}
+
+.probability-table {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--deeper-bg);
+}
+
+.probability-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.probability-table th,
+.probability-table td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--subtle-line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.probability-table th:first-child,
+.probability-table td:first-child {
+  text-align: left;
+}
+
+.probability-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.probability-table tr.current td {
+  background: rgba(119, 167, 255, 0.18);
+  color: var(--text);
+  font-weight: 900;
 }
 
 .log {
@@ -644,7 +948,7 @@ h1 {
 .log li {
   border-left: 3px solid var(--line);
   padding: 0.55rem 0.65rem;
-  background: rgba(16, 17, 20, 0.42);
+  background: var(--deep-bg);
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.35;
@@ -652,12 +956,12 @@ h1 {
 
 .log li.success {
   border-color: var(--success);
-  color: #d9ffe2;
+  color: var(--success-text);
 }
 
 .log li.fail {
   border-color: var(--danger);
-  color: #ffdede;
+  color: var(--fail-text);
 }
 
 .stage.success .sword {
@@ -751,6 +1055,28 @@ h1 {
   }
 }
 
+@keyframes item-drop-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 2.2rem) scale(0.55) rotate(-8deg);
+  }
+
+  16% {
+    opacity: 1;
+    transform: translate(-50%, -0.4rem) scale(1.12) rotate(3deg);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -2.2rem) scale(1) rotate(0deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -4.2rem) scale(0.88) rotate(6deg);
+  }
+}
+
 @keyframes damage-pop {
   0% {
     opacity: 0;
@@ -807,6 +1133,27 @@ h1 {
     grid-template-columns: 1fr;
   }
 
+  .settings-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .settings-row .secondary {
+    min-height: 2.35rem;
+    padding: 0 0.25rem;
+    font-size: 0.78rem;
+  }
+
+  .top-actions {
+    gap: 0.35rem;
+  }
+
+  .compact-action,
+  .icon-button {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.82rem;
+  }
+
   .enhance-settings {
     grid-template-columns: 4.25rem 1fr 4.25rem;
   }
@@ -817,6 +1164,11 @@ h1 {
 
   .monster-settings {
     grid-template-columns: 4.25rem 1fr 4.25rem;
+  }
+
+  .battle-meta {
+    gap: 0.5rem;
+    font-size: 0.82rem;
   }
 
   .panel {
