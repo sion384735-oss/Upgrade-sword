@@ -60,12 +60,14 @@ const FIREBASE_CONFIG = {
 };
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
 const FIRESTORE_SAVES_COLLECTION = "userSaves";
+const FIRESTORE_DEVELOPER_MESSAGES_COLLECTION = "developerMessages";
 const COFFEE_PAYMENT_URL = "https://qr.kakaopay.com/FJUnB2V9U3e807610";
 const COFFEE_BANK_ACCOUNT = "1002-252-257948";
+const DEVELOPER_EMAIL = "sion3847@naver.com";
 const SUCCESS_CHANCES = Object.freeze([
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
   50, 45, 40, 35, 30, 25, 20, 16, 13, 10,
-  9, 8, 7, 6, 5, 4, 3, 2.1, 1.1, 0.9,
+  3, 2.7, 2.3, 2.0, 1.7, 1.3, 1.0, 0.6, 0.3, 0.1,
 ]);
 const ITEM_DROP_CHANCE_BONUS = 3;
 const BOOSTED_DROP_ITEMS = ["protect", "fallProtect", "boost5"];
@@ -217,6 +219,7 @@ const elements = {
   gambleBetOptions: document.querySelector("#gambleBetOptions"),
   gambleBetResetButton: document.querySelector("#gambleBetResetButton"),
   gambleBetInput: document.querySelector("#gambleBetInput"),
+  gambleBetUnit: document.querySelector("#gambleBetUnit"),
   gambleHint: document.querySelector("#gambleHint"),
   gambleTabs: document.querySelector(".gamble-tabs"),
   oddEvenGame: document.querySelector("#oddEvenGame"),
@@ -242,6 +245,13 @@ const elements = {
   progressBar: document.querySelector("#progressBar"),
   riskText: document.querySelector("#riskText"),
   log: document.querySelector("#log"),
+  developerMessageForm: document.querySelector("#developerMessageForm"),
+  developerMessageInput: document.querySelector("#developerMessageInput"),
+  developerMessageButton: document.querySelector("#developerMessageButton"),
+  developerMessageHint: document.querySelector("#developerMessageHint"),
+  developerEmail: document.querySelector("#developerEmail"),
+  developerEmailCopyButton: document.querySelector("#developerEmailCopyButton"),
+  developerEmailHint: document.querySelector("#developerEmailHint"),
   enhanceButton: document.querySelector("#enhanceButton"),
   autoEnhanceButton: document.querySelector("#autoEnhanceButton"),
   autoEnhanceStartButton: document.querySelector("#autoEnhanceStartButton"),
@@ -335,7 +345,8 @@ function getCost(level) {
   if (level === 0) return 50;
   const earlyCosts = [0, 250, 520, 950, 1600, 2500, 3700, 5200, 7000];
   if (level <= 8) return earlyCosts[level];
-  return Math.floor(180 + level * 140 + level * level * 95 + level * level * level * 8);
+  const baseCost = Math.floor(180 + level * 140 + level * level * 95 + level * level * level * 8);
+  return level >= 20 ? baseCost * 5 : baseCost;
 }
 
 function getAudioContext() {
@@ -1476,6 +1487,18 @@ function formatGoldHtml(value) {
   return `${value.toLocaleString("ko-KR")} <span class="gold-coin-icon" aria-label="골드"></span>`;
 }
 
+function formatBetUnit(value) {
+  if (value >= PLATINUM_VALUE) {
+    const platinum = value / PLATINUM_VALUE;
+    const formatted = platinum >= 100
+      ? Math.floor(platinum).toLocaleString("ko-KR")
+      : platinum.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+    return `${formatted}백금`;
+  }
+  if (value >= 10000) return `${Math.floor(value / 10000).toLocaleString("ko-KR")}만 골드`;
+  return `${value.toLocaleString("ko-KR")}골드`;
+}
+
 function formatDamage(value) {
   if (value >= 1000) {
     const scaled = value / 1000;
@@ -1598,6 +1621,74 @@ async function copyCoffeeAccount() {
     elements.coffeeHint.textContent = `계좌번호를 복사했습니다: ${text}`;
   } catch {
     elements.coffeeHint.textContent = `복사에 실패했습니다. 계좌번호: ${text}`;
+  }
+}
+
+async function copyDeveloperEmail() {
+  const text = DEVELOPER_EMAIL;
+  elements.developerEmail.textContent = text;
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const input = document.createElement("input");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.append(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
+    elements.developerEmailHint.textContent = `메일 주소를 복사했습니다: ${text}`;
+  } catch {
+    elements.developerEmailHint.textContent = `복사에 실패했습니다. 메일 주소: ${text}`;
+  }
+}
+
+async function submitDeveloperMessage(event) {
+  event.preventDefault();
+  const message = elements.developerMessageInput.value.trim();
+
+  if (!message) {
+    elements.developerMessageHint.textContent = "내용을 입력해 주세요.";
+    return;
+  }
+
+  if (message.length > 300) {
+    elements.developerMessageHint.textContent = "300자 이하로 입력해 주세요.";
+    return;
+  }
+
+  if (!firebaseDb) {
+    elements.developerMessageHint.textContent = "전송 실패: 온라인 저장 연결을 확인해 주세요.";
+    return;
+  }
+
+  elements.developerMessageButton.disabled = true;
+  elements.developerMessageHint.textContent = "전송 중...";
+
+  try {
+    await addDoc(collection(firebaseDb, FIRESTORE_DEVELOPER_MESSAGES_COLLECTION), {
+      message,
+      level: state.level,
+      best: state.best,
+      gold: state.gold,
+      monsterLevel: state.monsterLevel,
+      userId: currentUser?.uid || "guest",
+      email: currentUser?.email || "guest",
+      page: window.location.origin,
+      time: Date.now(),
+      createdAt: serverTimestamp(),
+    });
+    elements.developerMessageInput.value = "";
+    elements.developerMessageHint.textContent = "전송 완료. 개발자만 확인할 수 있습니다.";
+  } catch {
+    elements.developerMessageHint.textContent = "전송 실패: 잠시 후 다시 시도해 주세요.";
+  } finally {
+    elements.developerMessageButton.disabled = false;
   }
 }
 
@@ -2143,6 +2234,7 @@ function renderGamble() {
   const canBet = canStartGamble(betAmount);
 
   elements.gambleWallet.innerHTML = `보유 ${formatGoldHtml(state.gold)}`;
+  elements.gambleBetUnit.textContent = formatBetUnit(betAmount);
   updateGambleBetQuickSelection(betAmount);
   elements.oddEvenGame.classList.toggle("hidden", activeGambleType !== "oddEven");
   elements.ladderGame.classList.toggle("hidden", activeGambleType !== "ladder");
@@ -2832,6 +2924,8 @@ elements.rankingCloseButton.addEventListener("click", closeRankingModal);
 elements.shopCloseButton.addEventListener("click", closeShopModal);
 elements.coffeeCloseButton.addEventListener("click", closeCoffeeModal);
 elements.coffeeCopyButton.addEventListener("click", copyCoffeeAccount);
+elements.developerMessageForm.addEventListener("submit", submitDeveloperMessage);
+elements.developerEmailCopyButton.addEventListener("click", copyDeveloperEmail);
 document.querySelectorAll("[data-coffee-button]").forEach((button) => {
   button.addEventListener("click", openCoffeeModal);
 });

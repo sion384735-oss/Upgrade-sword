@@ -401,6 +401,10 @@ button:disabled {
 .gamble-custom-bet em {
   color: var(--gold);
   font-style: normal;
+  font-weight: 900;
+  min-width: 4.4rem;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .gamble-tabs,
@@ -1769,6 +1773,70 @@ button .gold-coin-icon,
   color: var(--fail-text);
 }
 
+.developer-message {
+  display: grid;
+  gap: 0.5rem;
+  border-top: 1px solid var(--subtle-line);
+  padding-top: 0.75rem;
+}
+
+.developer-message h2 {
+  color: var(--gold);
+  font-size: 1rem;
+}
+
+.developer-message textarea {
+  width: 100%;
+  min-height: 5.4rem;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem;
+  background: var(--deep-bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.developer-message textarea::placeholder {
+  color: var(--muted);
+}
+
+.developer-message button {
+  width: 100%;
+}
+
+.developer-contact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--subtle-line);
+  border-radius: 8px;
+  padding: 0.55rem;
+  background: var(--deep-bg);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.developer-contact strong {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.developer-contact button {
+  width: auto;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.developer-message .modal-hint {
+  min-height: 1.2rem;
+  font-size: 0.78rem;
+}
+
 .stage.success .sword {
   filter: drop-shadow(0 0 1rem rgba(112, 224, 139, 0.8));
   transform: scale(1.05);
@@ -2131,6 +2199,14 @@ button .gold-coin-icon,
     min-height: 3.05rem;
     padding: 0.5rem 0.45rem;
     font-size: 0.92rem;
+  }
+
+  .developer-contact {
+    grid-template-columns: 1fr;
+  }
+
+  .developer-contact button {
+    width: 100%;
   }
 
   .compact-action,
