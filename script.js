@@ -70,6 +70,7 @@ const SUCCESS_CHANCES = Object.freeze([
   3, 2.7, 2.3, 2.0, 1.7, 1.3, 1.0, 0.6, 0.3, 0.1,
 ]);
 const ITEM_DROP_CHANCE_BONUS = 3;
+const BOOST10_DROP_CHANCE_BONUS = 5;
 const BOOSTED_DROP_ITEMS = ["protect", "fallProtect", "boost5"];
 const ITEM_ORDER = ["protect", "fallProtect", "boost5", "boost10"];
 const DROP_ITEM_ORDER = ["protect", "fallProtect", "boost5", "boost10"];
@@ -345,8 +346,7 @@ function getCost(level) {
   if (level === 0) return 50;
   const earlyCosts = [0, 250, 520, 950, 1600, 2500, 3700, 5200, 7000];
   if (level <= 8) return earlyCosts[level];
-  const baseCost = Math.floor(180 + level * 140 + level * level * 95 + level * level * level * 8);
-  return level >= 20 ? baseCost * 5 : baseCost;
+  return Math.floor(180 + level * 140 + level * level * 95 + level * level * level * 8);
 }
 
 function getAudioContext() {
@@ -766,6 +766,29 @@ function playBgmTone(frequency, startDelay, duration, type = "triangle", volume 
 }
 
 function getBgmProfile() {
+  if (state.monsterLevel >= MAX_MONSTER_LEVEL) {
+    return {
+      masterVolume: 0.58,
+      step: 1.25,
+      leadType: "triangle",
+      bassType: "sawtooth",
+      drone: 41.2,
+      orchestral: true,
+      chords: [
+        [82.41, 123.47, 164.81, 246.94, 329.63],
+        [73.42, 110, 146.83, 220, 293.66],
+        [65.41, 98, 130.81, 196, 261.63],
+        [61.74, 92.5, 123.47, 185, 246.94],
+        [73.42, 110, 146.83, 220, 293.66],
+        [82.41, 123.47, 164.81, 246.94, 329.63],
+      ],
+      leadVolume: 0.15,
+      bassVolume: 0.3,
+      harmonyVolume: 0.2,
+      pulseVolume: 0.09,
+    };
+  }
+
   if (state.monsterLevel <= 10) {
     return {
       masterVolume: 0.36,
@@ -831,6 +854,15 @@ function playBgmLoop() {
     playBgmTone(chord[chord.length - 1] * 1.5, offset + profile.step * 0.46, profile.step * 0.55, "sine", profile.leadVolume);
     if (profile.pulseVolume > 0) {
       playBgmTone(chord[0] * 0.5, offset + profile.step * 0.82, profile.step * 0.18, "triangle", profile.pulseVolume);
+    }
+    if (profile.orchestral) {
+      playBgmTone(chord[0] * 0.25, offset, profile.step * 0.32, "sine", profile.pulseVolume * 1.45);
+      playBgmTone(chord[1] * 2, offset + profile.step * 0.2, profile.step * 0.72, "triangle", profile.leadVolume * 0.82);
+      playBgmTone(chord[2] * 2, offset + profile.step * 0.36, profile.step * 0.56, "triangle", profile.leadVolume * 0.58);
+      playBgmTone(chord[chord.length - 1] * 2, offset + profile.step * 0.68, profile.step * 0.42, "sine", profile.leadVolume * 0.46);
+      if (index % 2 === 0) {
+        playBgmTone(chord[0] * 0.5, offset + profile.step * 0.5, profile.step * 0.24, "sawtooth", profile.pulseVolume);
+      }
     }
   });
 
@@ -917,7 +949,9 @@ function getItemDropBaseChance(monsterLevel) {
 function getItemDropChances(monsterLevel) {
   const baseChance = getItemDropBaseChance(monsterLevel);
   const boostedChance = monsterLevel < 10 ? 0 : baseChance + ITEM_DROP_CHANCE_BONUS;
-  const boost10Chance = monsterLevel < 10 ? 0 : ((monsterLevel - 9) / (MAX_MONSTER_LEVEL - 9)) * 1;
+  const boost10Chance = monsterLevel < 10
+    ? 0
+    : ((monsterLevel - 9) / (MAX_MONSTER_LEVEL - 9)) * 1 + BOOST10_DROP_CHANCE_BONUS;
   return DROP_ITEM_ORDER.reduce((chances, itemKey) => {
     chances[itemKey] = BOOSTED_DROP_ITEMS.includes(itemKey) ? boostedChance : boost10Chance;
     return chances;
@@ -2175,10 +2209,26 @@ function renderDropRateTable() {
 function renderShop() {
   const rows = SHOP_ITEMS.map(({ itemKey, price }) => {
     const item = ITEMS[itemKey];
-    const buttons = [1, 10, 100].map((quantity) => {
+    const ownedCount = state.inventory[itemKey] ?? 0;
+    const sellPrice = Math.floor(price * 0.5);
+    const buyButtons = [1, 10, 100].map((quantity) => {
       const totalPrice = price * quantity;
       const disabled = state.gold < totalPrice ? " disabled" : "";
-      return `<button class="shop-buy" type="button" data-shop-item="${itemKey}" data-shop-quantity="${quantity}"${disabled}>${quantity}개</button>`;
+      return `
+        <button class="shop-buy" type="button" data-shop-item="${itemKey}" data-shop-quantity="${quantity}"${disabled}>
+          <span>구매 ${quantity}개</span>
+          <strong>${formatGoldHtml(totalPrice)}</strong>
+        </button>
+      `;
+    }).join("");
+    const sellButtons = [1, 10, 100].map((quantity) => {
+      const disabled = ownedCount < quantity ? " disabled" : "";
+      return `
+        <button class="shop-sell" type="button" data-sell-item="${itemKey}" data-sell-quantity="${quantity}"${disabled}>
+          <span>판매 ${quantity}개</span>
+          <strong>${formatGoldHtml(sellPrice * quantity)}</strong>
+        </button>
+      `;
     }).join("");
 
     return `
@@ -2188,14 +2238,16 @@ function renderShop() {
           <strong>${item.name}</strong>
         </div>
         <div class="shop-item-meta">
-          <span>보유 ${(state.inventory[itemKey] ?? 0).toLocaleString("ko-KR")}개</span>
-          <span class="shop-price">1개 ${formatGoldHtml(price)}</span>
+          <span>보유 ${ownedCount.toLocaleString("ko-KR")}개</span>
+          <span class="shop-price">구매 ${formatGoldHtml(price)}</span>
+          <span class="shop-sell-price">판매 ${formatGoldHtml(sellPrice)}</span>
         </div>
-        <div class="shop-price-list">
-          <span>10개 ${formatGoldHtml(price * 10)}</span>
-          <span>100개 ${formatGoldHtml(price * 100)}</span>
+        <div class="shop-trade-row">
+          <span>구매</span>
+          <div class="shop-buy-row">${buyButtons}</div>
+          <span>판매</span>
+          <div class="shop-sell-row">${sellButtons}</div>
         </div>
-        <div class="shop-buy-row">${buttons}</div>
       </div>
     `;
   }).join("");
@@ -2623,7 +2675,9 @@ function selectInventoryItem(itemKey) {
     state.selectedItems = normalizeSelectedItems();
   } else if (ITEMS[itemKey] && state.inventory[itemKey] > 0) {
     if (state.level >= 29 && (itemKey === "boost5" || itemKey === "boost10")) {
-      setMessage("+29에서 +30 강화에는 확률 증가권을 사용할 수 없습니다.");
+      const warningText = "+29에서 +30 강화에는 확률 증가권을 사용할 수 없습니다.";
+      setMessage(warningText, "fail");
+      showItemDepletedBanner(warningText);
       return;
     }
     if (itemKey === "boost5") state.selectedItems.boost10 = 0;
@@ -2648,6 +2702,23 @@ function buyShopItem(itemKey, quantity = 1) {
   playSound("item");
   setMessage(`${ITEMS[itemKey].name} ${amount}개를 구매했습니다.`, "success");
   addLog(`상점 구매: ${ITEMS[itemKey].name} ${amount}개 (${formatGold(totalPrice)})`, "success");
+  saveGame();
+  render();
+}
+
+function sellShopItem(itemKey, quantity = 1) {
+  const shopItem = SHOP_ITEMS.find((item) => item.itemKey === itemKey);
+  const amount = Math.max(1, Math.floor(quantity));
+  const ownedCount = state.inventory[itemKey] ?? 0;
+  if (!shopItem || ownedCount < amount) return;
+
+  const sellPrice = Math.floor(shopItem.price * 0.5) * amount;
+  state.inventory[itemKey] -= amount;
+  state.selectedItems = normalizeSelectedItems(state.selectedItems);
+  state.gold = Math.min(Number.MAX_SAFE_INTEGER, state.gold + sellPrice);
+  playSound("gold");
+  setMessage(`${ITEMS[itemKey].name} ${amount}개를 판매했습니다.`, "success");
+  addLog(`상점 판매: ${ITEMS[itemKey].name} ${amount}개 (${formatGold(sellPrice)})`, "success");
   saveGame();
   render();
 }
@@ -2815,11 +2886,12 @@ function showDestroyedBanner() {
   window.setTimeout(() => elements.destroyedBanner.classList.remove("show"), 1200);
 }
 
-function showItemDepletedBanner() {
+function showItemDepletedBanner(text = "아이템을 모두 소진하셨습니다") {
+  elements.itemDepletedBanner.textContent = text;
   elements.itemDepletedBanner.classList.remove("show");
   void elements.itemDepletedBanner.offsetWidth;
   elements.itemDepletedBanner.classList.add("show");
-  window.setTimeout(() => elements.itemDepletedBanner.classList.remove("show"), 1500);
+  window.setTimeout(() => elements.itemDepletedBanner.classList.remove("show"), 2200);
 }
 
 function resetGame() {
@@ -2905,9 +2977,16 @@ elements.battleInventoryItems.addEventListener("click", (event) => {
   selectInventoryItem(button.dataset.item);
 });
 elements.shopItems.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-shop-item]");
-  if (!button) return;
-  buyShopItem(button.dataset.shopItem, Number(button.dataset.shopQuantity));
+  const buyButton = event.target.closest("[data-shop-item]");
+  if (buyButton) {
+    buyShopItem(buyButton.dataset.shopItem, Number(buyButton.dataset.shopQuantity));
+    return;
+  }
+
+  const sellButton = event.target.closest("[data-sell-item]");
+  if (sellButton) {
+    sellShopItem(sellButton.dataset.sellItem, Number(sellButton.dataset.sellQuantity));
+  }
 });
 elements.rankingNameInput.addEventListener("input", () => {
   elements.rankingNameInput.value = sanitizeRankingName(elements.rankingNameInput.value);

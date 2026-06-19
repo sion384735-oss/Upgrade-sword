@@ -121,7 +121,7 @@ button:disabled {
   width: min(92vw, 48rem);
   padding: 0.8rem 1rem;
   color: var(--gold);
-  font-size: clamp(2rem, 7vw, 4.8rem);
+  font-size: clamp(1.45rem, 5.4vw, 3.8rem);
   font-weight: 1000;
   line-height: 1.08;
   text-align: center;
@@ -1384,8 +1384,7 @@ button .gold-coin-icon,
   grid-template-areas:
     "icon title"
     "icon meta"
-    "prices prices"
-    "buttons buttons";
+    "trade trade";
   align-items: center;
   gap: 0.45rem 0.65rem;
   border: 1px solid var(--line);
@@ -1449,30 +1448,67 @@ button .gold-coin-icon,
   white-space: nowrap;
 }
 
-.shop-price-list {
-  display: flex;
-  grid-area: prices;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.8rem;
-  color: var(--muted);
-  font-size: 0.8rem;
+.shop-sell-price {
+  color: var(--success-text) !important;
 }
 
 .shop-buy-row {
   display: grid;
-  grid-area: buttons;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.4rem;
 }
 
-.shop-buy {
-  min-height: 2.45rem;
+.shop-trade-row {
+  display: grid;
+  grid-area: trade;
+  grid-template-columns: 1fr;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.shop-trade-row > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.shop-sell-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.shop-buy,
+.shop-sell {
+  display: grid;
+  place-items: center;
+  gap: 0.16rem;
+  min-height: 2.75rem;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.35rem 0.45rem;
+  padding: 0.42rem 0.5rem;
   background: var(--panel-soft);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.shop-buy strong,
+.shop-sell strong {
+  color: var(--gold);
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.shop-sell strong {
+  color: var(--success-text);
+}
+
+.shop-sell {
+  border-color: rgba(112, 224, 139, 0.42);
+  color: var(--success-text);
 }
 
 .battle-status {
@@ -2273,8 +2309,7 @@ button .gold-coin-icon,
     grid-template-areas:
       "icon title"
       "icon meta"
-      "prices prices"
-      "buttons buttons";
+      "trade trade";
     gap: 0.38rem;
     padding: 0.55rem;
   }
@@ -2293,6 +2328,26 @@ button .gold-coin-icon,
 
   .shop-price {
     font-size: 0.78rem;
+  }
+
+  .shop-trade-row {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-trade-row > span {
+    font-size: 0.72rem;
+  }
+
+  .shop-buy-row,
+  .shop-sell-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .shop-buy,
+  .shop-sell {
+    min-height: 3rem;
+    font-size: 0.94rem;
   }
 
   .monster-settings {
