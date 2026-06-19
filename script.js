@@ -1,3 +1,16 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
+import {
+  addDoc,
+  collection,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
 const MAX_LEVEL = 30;
 const MAX_MONSTER_LEVEL = 20;
 const BATTLE_TIME_LIMIT = 20;
@@ -10,6 +23,21 @@ const BALANCE_VERSION = 3;
 const STORAGE_KEY = "sword-upgrade-save";
 const RANKING_KEY = "sword-upgrade-rankings";
 const RANKING_SORTS = ["time", "gold", "attempts"];
+const RANKING_SORT_FIELDS = {
+  time: "clearTimeMs",
+  gold: "spentGold",
+  attempts: "enhanceAttempts",
+};
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBxTjoR9UpAek0XtQwNO_5sXAKvS5u-9fU",
+  authDomain: "sowrd-upgrade.firebaseapp.com",
+  projectId: "sowrd-upgrade",
+  storageBucket: "sowrd-upgrade.firebasestorage.app",
+  messagingSenderId: "387805116792",
+  appId: "1:387805116792:web:b1f9cbd7c55086fe21708d",
+  measurementId: "G-EM9ZZECBX2",
+};
+const FIRESTORE_RANKINGS_COLLECTION = "rankings";
 const COFFEE_PAYMENT_URL = "";
 const SUCCESS_CHANCES = [
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
@@ -91,8 +119,22 @@ let shopOpen = false;
 let attackSoundIndex = 0;
 let attackSounds = [];
 let activeRankingSort = "time";
+let rankingRenderToken = 0;
+let firebaseDb = null;
 
 const BGM_ROOTS = [110, 103.83, 98, 92.5, 87.31, 82.41, 77.78, 73.42, 69.3, 65.41];
+
+try {
+  const firebaseApp = initializeApp(FIREBASE_CONFIG);
+  firebaseDb = getFirestore(firebaseApp);
+  isAnalyticsSupported()
+    .then((supported) => {
+      if (supported) getAnalytics(firebaseApp);
+    })
+    .catch(() => {});
+} catch {
+  firebaseDb = null;
+}
 
 const elements = {
   stage: document.querySelector(".stage"),
@@ -882,8 +924,52 @@ function saveRankings(rankings) {
   localStorage.setItem(RANKING_KEY, JSON.stringify(rankings.slice(0, 50)));
 }
 
+function normalizeRankingEntry(entry) {
+  if (!entry || typeof entry.name !== "string") return null;
+  const clearTimeMs = Number(entry.clearTimeMs);
+  const spentGold = Number(entry.spentGold);
+  const enhanceAttempts = Number(entry.enhanceAttempts);
+  const firestoreTime = entry.createdAt && typeof entry.createdAt.toMillis === "function"
+    ? entry.createdAt.toMillis()
+    : NaN;
+  const time = Number.isFinite(Number(entry.time)) ? Number(entry.time) : firestoreTime;
+
+  if (!Number.isFinite(clearTimeMs)) return null;
+  return {
+    name: sanitizeRankingName(entry.name),
+    level: MAX_LEVEL,
+    gold: Number.isFinite(Number(entry.gold)) ? Number(entry.gold) : 0,
+    clearTimeMs,
+    spentGold: Number.isFinite(spentGold) ? spentGold : Number.MAX_SAFE_INTEGER,
+    enhanceAttempts: Number.isFinite(enhanceAttempts)
+      ? Math.max(0, Math.floor(enhanceAttempts))
+      : Number.MAX_SAFE_INTEGER,
+    time: Number.isFinite(time) ? time : Date.now(),
+  };
+}
+
+async function loadRemoteRankings() {
+  if (!firebaseDb) return null;
+  const sortField = RANKING_SORT_FIELDS[activeRankingSort] ?? RANKING_SORT_FIELDS.time;
+  const rankingQuery = query(
+    collection(firebaseDb, FIRESTORE_RANKINGS_COLLECTION),
+    orderBy(sortField, "asc"),
+    limit(50),
+  );
+  const snapshot = await getDocs(rankingQuery);
+  return snapshot.docs
+    .map((doc) => normalizeRankingEntry(doc.data()))
+    .filter(Boolean);
+}
+
 function sanitizeRankingName(value) {
   return value.replace(/[^a-zA-Z]/g, "").slice(0, 10);
+}
+
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = value;
+  return div.innerHTML;
 }
 
 function formatRankingDate(timestamp) {
@@ -969,11 +1055,28 @@ function addLog(text, type = "") {
   }
 }
 
-function renderRankingList() {
-  const rankings = getSortedRankings();
+async function renderRankingList() {
+  const currentToken = ++rankingRenderToken;
   elements.rankingTabs.querySelectorAll("[data-ranking-sort]").forEach((button) => {
     button.classList.toggle("selected", button.dataset.rankingSort === activeRankingSort);
   });
+  elements.rankingList.innerHTML = `<div class="ranking-empty">랭킹을 불러오는 중입니다.</div>`;
+
+  let rankings = [];
+  let isRemote = false;
+  try {
+    const remoteRankings = await loadRemoteRankings();
+    if (currentToken !== rankingRenderToken) return;
+    if (remoteRankings) {
+      rankings = remoteRankings;
+      isRemote = true;
+    } else {
+      rankings = getSortedRankings();
+    }
+  } catch {
+    if (currentToken !== rankingRenderToken) return;
+    rankings = getSortedRankings();
+  }
 
   if (!rankings.length) {
     elements.rankingList.innerHTML = `<div class="ranking-empty">아직 등록된 랭킹이 없습니다.</div>`;
@@ -984,7 +1087,7 @@ function renderRankingList() {
     <div class="ranking-row">
       <strong>${index + 1}</strong>
       <div>
-        <span>${entry.name}</span>
+        <span>${escapeHtml(entry.name)}</span>
         <div class="ranking-meta">
           <em>시간 ${Number.isFinite(entry.clearTimeMs) ? formatDuration(entry.clearTimeMs) : "-"}</em>
           <em>골드 ${Number.isFinite(entry.spentGold) ? formatGold(entry.spentGold) : "-"}</em>
@@ -993,7 +1096,7 @@ function renderRankingList() {
         </div>
       </div>
     </div>
-  `).join("");
+  `).join("") + (isRemote ? "" : `<div class="ranking-empty">온라인 랭킹 연결 실패: 이 기기의 저장 랭킹을 표시합니다.</div>`);
 }
 
 function openRankingModal() {
@@ -1066,7 +1169,7 @@ function showCompletionModal() {
   window.setTimeout(() => elements.rankingNameInput.focus(), 50);
 }
 
-function registerRanking() {
+async function registerRanking() {
   const name = sanitizeRankingName(elements.rankingNameInput.value);
   elements.rankingNameInput.value = name;
 
@@ -1075,8 +1178,7 @@ function registerRanking() {
     return;
   }
 
-  const rankings = loadRankings();
-  rankings.push({
+  const entry = {
     name,
     level: MAX_LEVEL,
     gold: state.gold,
@@ -1084,11 +1186,33 @@ function registerRanking() {
     spentGold: state.spentGold,
     enhanceAttempts: state.enhanceAttempts,
     time: Date.now(),
-  });
-  saveRankings(rankings);
-  elements.rankingNameHint.textContent = `${name} 랭킹 등록 완료`;
-  closeCompletionModal();
-  openRankingModal();
+  };
+
+  elements.rankingRegisterButton.disabled = true;
+  elements.rankingNameHint.textContent = "랭킹 등록 중...";
+
+  try {
+    if (!firebaseDb) throw new Error("Firestore is not ready.");
+    await addDoc(collection(firebaseDb, FIRESTORE_RANKINGS_COLLECTION), {
+      ...entry,
+      createdAt: serverTimestamp(),
+    });
+    const rankings = loadRankings();
+    rankings.push(entry);
+    saveRankings(rankings);
+    elements.rankingNameHint.textContent = `${name} 온라인 랭킹 등록 완료`;
+    closeCompletionModal();
+    openRankingModal();
+  } catch {
+    const rankings = loadRankings();
+    rankings.push(entry);
+    saveRankings(rankings);
+    elements.rankingNameHint.textContent = `${name} 랭킹을 이 기기에만 저장했습니다. Firestore 설정을 확인하세요.`;
+    closeCompletionModal();
+    openRankingModal();
+  } finally {
+    elements.rankingRegisterButton.disabled = false;
+  }
 }
 
 function renderProbabilityTable() {

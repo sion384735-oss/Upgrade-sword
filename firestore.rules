@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rankings/{rankingId} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'name',
+          'level',
+          'gold',
+          'clearTimeMs',
+          'spentGold',
+          'enhanceAttempts',
+          'time',
+          'createdAt'
+        ]) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.matches('^[A-Za-z]{1,10}$') &&
+        request.resource.data.level == 30 &&
+        request.resource.data.gold is number &&
+        request.resource.data.gold >= 0 &&
+        request.resource.data.clearTimeMs is number &&
+        request.resource.data.clearTimeMs >= 0 &&
+        request.resource.data.spentGold is number &&
+        request.resource.data.spentGold >= 0 &&
+        request.resource.data.enhanceAttempts is number &&
+        request.resource.data.enhanceAttempts >= 0 &&
+        request.resource.data.time is number &&
+        request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+  }
+}
