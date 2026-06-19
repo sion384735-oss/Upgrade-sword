@@ -61,6 +61,7 @@ const FIREBASE_CONFIG = {
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
 const FIRESTORE_SAVES_COLLECTION = "userSaves";
 const FIRESTORE_DEVELOPER_MESSAGES_COLLECTION = "developerMessages";
+const RANKING_SAVE_TIMEOUT_MS = 5000;
 const COFFEE_PAYMENT_URL = "https://qr.kakaopay.com/FJUnB2V9U3e807610";
 const COFFEE_BANK_ACCOUNT = "1002-252-257948";
 const DEVELOPER_EMAIL = "sion3847@naver.com";
@@ -1416,6 +1417,16 @@ function saveRankings(rankings) {
   localStorage.setItem(RANKING_KEY, JSON.stringify(rankings.slice(0, 50)));
 }
 
+function withTimeout(promise, timeoutMs, errorMessage = "Request timed out.") {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  });
+}
+
 function normalizeRankingEntry(entry) {
   if (!entry || typeof entry.name !== "string") return null;
   const clearTimeMs = Number(entry.clearTimeMs);
@@ -1455,7 +1466,7 @@ async function loadRemoteRankings() {
 }
 
 function sanitizeRankingName(value) {
-  return value.replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 10);
+  return value.replace(/[^A-Za-z]/g, "").slice(0, 10);
 }
 
 function escapeHtml(value) {
@@ -2038,7 +2049,7 @@ function showCompletionModal(soundWaited = false) {
   elements.rankingNameInput.value = "";
   elements.rankingNameInput.disabled = false;
   elements.rankingRegisterButton.disabled = false;
-  elements.rankingNameHint.textContent = "한글, 영문, 숫자로 최대 10글자까지 입력할 수 있습니다.";
+  elements.rankingNameHint.textContent = "랭킹 닉네임은 영어만 가능합니다. 최대 10글자.";
   elements.completionModal.classList.remove("hidden");
   window.requestAnimationFrame(() => {
     startCompletionCelebration();
@@ -2067,7 +2078,7 @@ async function registerRanking() {
   elements.rankingNameInput.value = name;
 
   if (!name) {
-    elements.rankingNameHint.textContent = "닉네임을 입력하세요.";
+    elements.rankingNameHint.textContent = "영어 닉네임을 입력하세요.";
     return;
   }
 
@@ -2088,10 +2099,14 @@ async function registerRanking() {
 
   try {
     if (!firebaseDb) throw new Error("Firestore is not ready.");
-    await addDoc(collection(firebaseDb, FIRESTORE_RANKINGS_COLLECTION), {
-      ...entry,
-      createdAt: serverTimestamp(),
-    });
+    await withTimeout(
+      addDoc(collection(firebaseDb, FIRESTORE_RANKINGS_COLLECTION), {
+        ...entry,
+        createdAt: serverTimestamp(),
+      }),
+      RANKING_SAVE_TIMEOUT_MS,
+      "Ranking save timed out.",
+    );
     const rankings = loadRankings();
     rankings.push(entry);
     saveRankings(rankings);
@@ -2115,7 +2130,7 @@ function scheduleRankingRegistration() {
   const name = sanitizeRankingName(elements.rankingNameInput.value);
   if (!name) {
     rankingAutoRegisterTimer = null;
-    elements.rankingNameHint.textContent = "닉네임을 입력하세요.";
+    elements.rankingNameHint.textContent = "영어 닉네임을 입력하세요.";
     return;
   }
 
