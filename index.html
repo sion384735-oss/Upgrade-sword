@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>검 강화하기</title>
-    <link rel="stylesheet" href="styles.css?v=20260619-mobile-auth" />
+    <link rel="stylesheet" href="styles.css?v=20260619-shop-no-overlap" />
   </head>
   <body>
     <main class="game">
@@ -169,12 +169,15 @@
             <button class="secondary compact-action" id="topGambleButton" type="button">🎲 도박</button>
             <button class="secondary compact-action" id="autoEnhanceButton" type="button">자동 강화</button>
             <div class="enhance-settings top-enhance-settings hidden" id="enhanceSettings" aria-label="자동 강화 설정">
-              <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
-              <div class="stage-readout">
-                <span>목표 강화</span>
-                <strong id="enhanceTargetReadout">10</strong>
+              <div class="auto-target-controls">
+                <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
+                <div class="stage-readout">
+                  <span>목표 강화</span>
+                  <strong id="enhanceTargetReadout">10</strong>
+                </div>
+                <button class="secondary stage-step" id="enhanceTargetNextButton" type="button">▶</button>
               </div>
-              <button class="secondary stage-step" id="enhanceTargetNextButton" type="button">▶</button>
+              <div class="auto-item-status" id="autoItemStatus" aria-label="자동 강화 아이템 사용 설정"></div>
               <button class="secondary" id="autoEnhanceStartButton" type="button">자동 시작</button>
             </div>
           </div>
@@ -332,6 +335,6 @@
       </aside>
     </main>
 
-    <script type="module" src="script.js?v=20260619-mobile-auth"></script>
+    <script type="module" src="script.js?v=20260619-shop-no-overlap"></script>
   </body>
 </html>

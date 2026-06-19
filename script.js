@@ -246,6 +246,7 @@ const elements = {
   autoEnhanceButton: document.querySelector("#autoEnhanceButton"),
   autoEnhanceStartButton: document.querySelector("#autoEnhanceStartButton"),
   enhanceSettings: document.querySelector("#enhanceSettings"),
+  autoItemStatus: document.querySelector("#autoItemStatus"),
   shopToggleButton: document.querySelector("#shopToggleButton"),
   shopModal: document.querySelector("#shopModal"),
   shopCloseButton: document.querySelector("#shopCloseButton"),
@@ -1081,6 +1082,7 @@ function getSaveData() {
     spentGold: state.spentGold,
     enhanceAttempts: state.enhanceAttempts,
     maxCompletionShown: state.maxCompletionShown,
+    savedAt: Date.now(),
   };
 }
 
@@ -1116,6 +1118,24 @@ function readSignedSaveData(saved) {
 function removeTamperedSave() {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.setItem(SAVE_MIGRATION_KEY, "1");
+}
+
+function readLocalSaveData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return null;
+
+  try {
+    return readSignedSaveData(saved);
+  } catch {
+    return null;
+  }
+}
+
+function getSaveTimestamp(save) {
+  if (!save) return 0;
+  if (Number.isFinite(save.savedAt)) return save.savedAt;
+  if (Number.isFinite(save.runStartedAt)) return save.runStartedAt;
+  return 0;
 }
 
 function applySaveData(parsed, { saveAfter = true } = {}) {
@@ -1207,8 +1227,10 @@ async function saveCloudGame() {
   if (!saveRef) return;
 
   try {
+    const save = getSaveData();
     await setDoc(saveRef, {
-      save: getSaveData(),
+      save,
+      savedAt: save.savedAt,
       updatedAt: serverTimestamp(),
     }, { merge: true });
     if (elements.authHint) elements.authHint.textContent = "온라인 저장 완료";
@@ -1224,16 +1246,27 @@ async function loadCloudGame(user) {
   cloudSaveLoading = true;
   try {
     const snapshot = await getDoc(saveRef);
-    if (snapshot.exists() && snapshot.data()?.save) {
-      applySaveData(snapshot.data().save, { saveAfter: false });
+    const cloudSave = snapshot.exists() ? snapshot.data()?.save : null;
+    const localSave = readLocalSaveData();
+
+    if (cloudSave || localSave) {
+      const selectedSave = getSaveTimestamp(cloudSave) >= getSaveTimestamp(localSave)
+        ? cloudSave
+        : localSave;
+      const selectedSource = selectedSave === cloudSave ? "온라인" : "현재 기기";
+
+      applySaveData(selectedSave, { saveAfter: false });
       saveGame();
       ensureMonsterHp();
       render();
-      setMessage("로그인 저장 데이터를 불러왔습니다.", "success");
-      if (elements.authHint) elements.authHint.textContent = "온라인 저장 데이터를 불러왔습니다.";
+      await saveCloudGame();
+      setMessage(`${selectedSource} 저장 데이터를 불러왔습니다.`, "success");
+      if (elements.authHint) elements.authHint.textContent = `${selectedSource} 저장 데이터를 불러왔습니다.`;
     } else {
+      const save = getSaveData();
       await setDoc(saveRef, {
-        save: getSaveData(),
+        save,
+        savedAt: save.savedAt,
         updatedAt: serverTimestamp(),
       }, { merge: true });
       if (elements.authHint) elements.authHint.textContent = "현재 진행도를 온라인에 저장했습니다.";
@@ -1258,11 +1291,6 @@ function getAuthErrorMessage(error) {
   if (code.includes("too-many-requests")) return "요청이 너무 많습니다. 잠시 후 다시 시도하세요.";
   if (code.includes("api-key-not-valid") || code.includes("invalid-api-key")) return "Firebase API 키 설정을 확인하세요.";
   return code ? `로그인 처리에 실패했습니다. (${code})` : "로그인 처리에 실패했습니다.";
-}
-
-function shouldUseRedirectLogin() {
-  return window.matchMedia?.("(max-width: 800px)")?.matches
-    || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
 function openAuthModal() {
@@ -1300,12 +1328,6 @@ async function loginWithGoogle() {
 
   elements.authHint.textContent = "Google 로그인 중...";
   try {
-    if (shouldUseRedirectLogin()) {
-      elements.authHint.textContent = "Google 로그인 페이지로 이동합니다...";
-      await signInWithRedirect(firebaseAuth, googleAuthProvider);
-      return;
-    }
-
     await signInWithPopup(firebaseAuth, googleAuthProvider);
     elements.authHint.textContent = "Google 로그인 완료. 저장 데이터를 확인 중입니다.";
   } catch (error) {
@@ -2070,8 +2092,14 @@ function renderShop() {
 
     return `
       <div class="shop-item">
-        <strong>${item.name}</strong>
-        <span class="shop-price">1개 ${formatGoldHtml(price)}</span>
+        <span class="item-object ${itemKey}" aria-hidden="true"></span>
+        <div class="shop-item-title">
+          <strong>${item.name}</strong>
+        </div>
+        <div class="shop-item-meta">
+          <span>보유 ${(state.inventory[itemKey] ?? 0).toLocaleString("ko-KR")}개</span>
+          <span class="shop-price">1개 ${formatGoldHtml(price)}</span>
+        </div>
         <div class="shop-price-list">
           <span>10개 ${formatGoldHtml(price * 10)}</span>
           <span>100개 ${formatGoldHtml(price * 100)}</span>
@@ -2083,6 +2111,29 @@ function renderShop() {
 
   elements.shopItems.innerHTML = `
     <div class="shop-wallet">가지고 있는 돈 ${formatGoldHtml(state.gold)}</div>
+    ${rows}
+  `;
+}
+
+function renderAutoItemStatus() {
+  const rows = ITEM_ORDER.map((itemKey) => {
+    const selectedCount = getSelectedItemCount(itemKey);
+    const ownedCount = state.inventory[itemKey] ?? 0;
+    const activeClass = selectedCount > 0 ? " selected" : "";
+    const disabled = ownedCount <= 0 ? " disabled" : "";
+    return `
+      <button class="auto-item-row${activeClass}" type="button" data-auto-item="${itemKey}"${disabled}>
+        <span class="item-object ${itemKey}" aria-hidden="true"></span>
+        <span class="auto-item-text">
+          <span class="auto-item-name">${ITEMS[itemKey].name}</span>
+          <strong>사용 ${selectedCount.toLocaleString("ko-KR")} / 보유 ${ownedCount.toLocaleString("ko-KR")}</strong>
+        </span>
+      </button>
+    `;
+  }).join("");
+
+  elements.autoItemStatus.innerHTML = `
+    <div class="auto-item-title">아이템 사용 설정</div>
     ${rows}
   `;
 }
@@ -2147,6 +2198,7 @@ function render() {
   elements.enhanceSettings.classList.toggle("hidden", !enhanceSettingsOpen);
   elements.autoEnhanceButton.textContent = enhanceSettingsOpen ? "설정 닫기" : "자동 강화";
   elements.autoEnhanceStartButton.textContent = autoEnhanceTimer ? "자동 중지" : "자동 시작";
+  renderAutoItemStatus();
   elements.shopToggleButton.textContent = "🏠 상점";
   elements.soundToggleButton.textContent = state.soundEnabled ? "사운드 ON" : "사운드 OFF";
   elements.bgmToggleButton.textContent = state.bgmEnabled ? "BGM ON" : "BGM OFF";
@@ -2709,6 +2761,11 @@ elements.enhanceButton.addEventListener("click", enhance);
 elements.shopToggleButton.addEventListener("click", openShopModal);
 elements.autoEnhanceButton.addEventListener("click", toggleEnhanceSettings);
 elements.autoEnhanceStartButton.addEventListener("click", toggleAutoEnhance);
+elements.autoItemStatus.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-auto-item]");
+  if (!button) return;
+  selectInventoryItem(button.dataset.autoItem);
+});
 elements.enhanceTargetPrevButton.addEventListener("click", () => changeEnhanceTarget(-1));
 elements.enhanceTargetNextButton.addEventListener("click", () => changeEnhanceTarget(1));
 elements.soundToggleButton.addEventListener("click", toggleSound);

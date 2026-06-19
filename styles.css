@@ -721,12 +721,20 @@ h1 {
   top: calc(100% + 0.55rem);
   right: 0;
   z-index: 12;
-  width: min(19rem, calc(100vw - 2rem));
-  grid-template-columns: 2.5rem minmax(6.5rem, 1fr) 2.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+  grid-template-columns: 1fr;
   justify-items: center;
   gap: 0.4rem;
   padding: 0.55rem;
   box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.28);
+}
+
+.auto-target-controls {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(6.5rem, 1fr) 2.5rem;
+  justify-self: end;
+  width: min(18rem, 100%);
+  gap: 0.4rem;
 }
 
 .top-enhance-settings .stage-step {
@@ -764,11 +772,96 @@ h1 {
 .top-enhance-settings #autoEnhanceStartButton {
   grid-column: 1 / -1;
   justify-self: center;
+  width: 100%;
   min-width: 7.5rem;
   min-height: 2.3rem;
   padding: 0 0.9rem;
   font-size: 0.85rem;
   line-height: 1;
+}
+
+.auto-item-status {
+  display: grid;
+  grid-column: 1 / -1;
+  width: 100%;
+  gap: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: var(--deep-bg);
+}
+
+.auto-item-title {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.auto-item-title + .auto-item-row {
+  border-top: 0;
+}
+
+.auto-item-row {
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.38rem;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0.45rem 0.35rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.auto-item-row:first-of-type {
+  border-top: 0;
+}
+
+.auto-item-row .item-object {
+  width: 1.3rem;
+  margin-top: 0.05rem;
+}
+
+.auto-item-text {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.auto-item-name {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.auto-item-row strong {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.auto-item-row.selected strong {
+  color: var(--gold);
+}
+
+.auto-item-row.selected {
+  box-shadow: inset 0.18rem 0 0 var(--gold);
+  background: rgba(246, 196, 83, 0.09);
+}
+
+.auto-item-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .sword-area {
@@ -1278,23 +1371,61 @@ button .gold-coin-icon,
 }
 
 .shop-card {
-  width: min(34rem, 100%);
+  width: min(38rem, 100%);
 }
 
 .shop-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem 0.65rem;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  grid-template-areas:
+    "icon title"
+    "icon meta"
+    "prices prices"
+    "buttons buttons";
+  align-items: center;
+  gap: 0.45rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.55rem;
+  padding: 0.65rem;
   background: var(--soft-bg);
   text-align: left;
 }
 
-.shop-item strong {
+.shop-item .item-object {
+  grid-area: icon;
+  width: 1.65rem;
+}
+
+.shop-item-title {
+  grid-area: title;
+  display: grid;
   min-width: 0;
+  gap: 0.18rem;
+  align-self: end;
+}
+
+.shop-item-title strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.95rem;
   font-weight: 900;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.shop-item-meta {
+  display: flex;
+  grid-area: meta;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  min-width: 0;
+  align-self: start;
+}
+
+.shop-item-meta span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .shop-wallet {
@@ -1309,13 +1440,14 @@ button .gold-coin-icon,
 
 .shop-price {
   color: var(--gold);
+  font-size: 0.82rem;
   font-weight: 900;
   white-space: nowrap;
 }
 
 .shop-price-list {
   display: flex;
-  grid-column: 1 / -1;
+  grid-area: prices;
   flex-wrap: wrap;
   gap: 0.45rem 0.8rem;
   color: var(--muted);
@@ -1324,7 +1456,7 @@ button .gold-coin-icon,
 
 .shop-buy-row {
   display: grid;
-  grid-column: 1 / -1;
+  grid-area: buttons;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.4rem;
 }
@@ -1943,6 +2075,11 @@ button .gold-coin-icon,
     grid-column: 1 / -1;
     right: 0;
     width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .auto-target-controls {
+    width: 100%;
     grid-template-columns: 2.35rem minmax(6.2rem, 1fr) 2.35rem;
   }
 
@@ -2031,6 +2168,55 @@ button .gold-coin-icon,
     min-width: 7.5rem;
     min-height: 2.8rem;
     font-size: 0.95rem;
+  }
+
+  .auto-item-status {
+    padding: 0.45rem;
+  }
+
+  .auto-item-row {
+    grid-template-columns: 1.2rem minmax(0, 1fr);
+    gap: 0.28rem;
+    padding: 0.48rem 0.25rem;
+  }
+
+  .auto-item-row .item-object {
+    width: 1.15rem;
+  }
+
+  .auto-item-name {
+    font-size: clamp(0.72rem, 3vw, 0.82rem);
+  }
+
+  .auto-item-row strong {
+    font-size: 0.66rem;
+  }
+
+  .shop-item {
+    grid-template-columns: 1.35rem minmax(0, 1fr);
+    grid-template-areas:
+      "icon title"
+      "icon meta"
+      "prices prices"
+      "buttons buttons";
+    gap: 0.38rem;
+    padding: 0.55rem;
+  }
+
+  .shop-item .item-object {
+    width: 1.35rem;
+  }
+
+  .shop-item-title strong {
+    font-size: clamp(0.78rem, 3.1vw, 0.9rem);
+  }
+
+  .shop-item-meta {
+    gap: 0.25rem 0.55rem;
+  }
+
+  .shop-price {
+    font-size: 0.78rem;
   }
 
   .monster-settings {
