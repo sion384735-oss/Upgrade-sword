@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>검 강화하기</title>
-    <link rel="stylesheet" href="styles.css?v=20260619-google-auth" />
+    <link rel="stylesheet" href="styles.css?v=20260619-bank-copy" />
   </head>
   <body>
     <main class="game">
@@ -53,20 +53,8 @@
             <button class="icon-button" id="authCloseButton" type="button">닫기</button>
           </div>
           <p id="authStatus">로그인하면 다른 기기에서도 저장 데이터를 불러올 수 있습니다.</p>
-          <div class="auth-form">
-            <label>
-              <span>이메일</span>
-              <input id="authEmailInput" type="email" autocomplete="email" placeholder="email@example.com" />
-            </label>
-            <label>
-              <span>비밀번호</span>
-              <input id="authPasswordInput" type="password" autocomplete="current-password" minlength="6" placeholder="6글자 이상" />
-            </label>
-          </div>
           <div class="auth-actions">
             <button class="primary google-auth-button" id="authGoogleButton" type="button">Google 계정으로 시작</button>
-            <button class="primary" id="authLoginButton" type="button">로그인</button>
-            <button class="secondary" id="authSignupButton" type="button">회원가입</button>
             <button class="secondary hidden" id="authLogoutButton" type="button">로그아웃</button>
           </div>
           <p class="modal-hint" id="authHint">Google 계정으로 바로 시작할 수 있습니다.</p>
@@ -82,6 +70,11 @@
             <button class="icon-button" id="coffeeCloseButton" type="button">닫기</button>
           </div>
           <p>재미있게 플레이했다면 커피 한 잔으로 응원할 수 있습니다.</p>
+          <div class="bank-transfer-box">
+            <span>웹 송금 계좌</span>
+            <strong id="coffeeBankAccount">우리은행 1002-252-257948</strong>
+            <button class="secondary" id="coffeeCopyButton" type="button">계좌번호 복사</button>
+          </div>
           <a
             class="primary coffee-pay-button"
             id="coffeePayButton"
@@ -97,16 +90,24 @@
           <div class="modal-title-row">
             <div>
               <p class="eyebrow">도박</p>
-              <h2 id="gambleTitle">백금 배팅</h2>
+              <h2 id="gambleTitle">골드 배팅</h2>
             </div>
             <button class="icon-button" id="gambleCloseButton" type="button">닫기</button>
           </div>
           <div class="gamble-wallet" id="gambleWallet">보유 0 <span class="gold-coin-icon" aria-label="골드"></span></div>
-          <label class="gamble-bet-row">
+          <div class="gamble-bet-row">
             <span>배팅액</span>
-            <input id="gambleBetInput" type="number" min="1" step="1" inputmode="numeric" aria-label="백금 단위 배팅액" value="1" />
-            <em>💠백금</em>
-          </label>
+            <div class="gamble-bet-options" id="gambleBetOptions" aria-label="배팅액 선택">
+              <button class="secondary" type="button" data-bet-amount="10000">+1만</button>
+              <button class="secondary" type="button" data-bet-amount="100000">+10만</button>
+              <button class="secondary" type="button" data-bet-amount="1000000">+1백금</button>
+            </div>
+            <label class="gamble-custom-bet">
+              <span>직접 입력</span>
+              <input id="gambleBetInput" type="number" min="10000" step="10000" inputmode="numeric" aria-label="골드 단위 배팅액" value="10000" />
+              <em>골드</em>
+            </label>
+          </div>
           <div class="gamble-tabs" aria-label="도박 종류">
             <button class="secondary selected" id="oddEvenTabButton" type="button" data-gamble-tab="oddEven">홀짝 2배</button>
             <button class="secondary" id="ladderTabButton" type="button" data-gamble-tab="ladder">사다리 3배</button>
@@ -127,9 +128,6 @@
                 <div class="ladder-line lane-1"></div>
                 <div class="ladder-line lane-2"></div>
                 <div class="ladder-line lane-3"></div>
-                <div class="ladder-rung rung-1"></div>
-                <div class="ladder-rung rung-2"></div>
-                <div class="ladder-rung rung-3"></div>
                 <div class="ladder-marker" id="ladderMarker"></div>
               </div>
               <div class="ladder-result" id="ladderResult">1, 2, 3줄 중 하나를 선택하세요</div>
@@ -140,7 +138,7 @@
               <button class="primary" type="button" data-ladder-choice="3">3줄</button>
             </div>
           </div>
-          <p class="modal-hint" id="gambleHint">최소 배팅금액은 1💠백금입니다.</p>
+          <p class="modal-hint" id="gambleHint">배팅 단위를 선택하세요.</p>
         </div>
       </div>
       <button class="reset-corner" id="resetButton" type="button" aria-label="게임 초기화">초기화</button>
@@ -154,6 +152,7 @@
           <div class="top-actions">
             <button class="secondary compact-action" id="shopToggleButton" type="button">🏠 상점</button>
             <button class="secondary compact-action" id="topWorkButton" type="button">몬스터</button>
+            <button class="secondary compact-action" id="topGambleButton" type="button">도박</button>
             <button class="secondary compact-action" id="autoEnhanceButton" type="button">자동 강화</button>
             <div class="enhance-settings top-enhance-settings hidden" id="enhanceSettings" aria-label="자동 강화 설정">
               <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
@@ -324,6 +323,6 @@
       </aside>
     </main>
 
-    <script type="module" src="script.js?v=20260619-google-auth"></script>
+    <script type="module" src="script.js?v=20260619-bank-copy"></script>
   </body>
 </html>

@@ -14,11 +14,9 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 import {
-  createUserWithEmailAndPassword,
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
@@ -35,7 +33,8 @@ const FIREWORKS_SOUND_VOLUME = 0.72;
 const FIREWORKS_SOUND_START_SECONDS = 0.55;
 const SFX_VOLUME = 0.25;
 const PLATINUM_VALUE = 1000000;
-const MIN_GAMBLE_BET = PLATINUM_VALUE;
+const GAMBLE_BET_AMOUNTS = [10000, 100000, PLATINUM_VALUE];
+const MIN_GAMBLE_BET = GAMBLE_BET_AMOUNTS[0];
 const GAMBLE_TYPES = ["oddEven", "ladder"];
 const BALANCE_VERSION = 3;
 const STORAGE_KEY = "sword-upgrade-save";
@@ -60,6 +59,7 @@ const FIREBASE_CONFIG = {
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
 const FIRESTORE_SAVES_COLLECTION = "userSaves";
 const COFFEE_PAYMENT_URL = "https://qr.kakaopay.com/FJUnB2V9U3e807610";
+const COFFEE_BANK_ACCOUNT = "1002-252-257948";
 const SUCCESS_CHANCES = Object.freeze([
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
   50, 45, 40, 35, 30, 25, 20, 16, 13, 10,
@@ -199,22 +199,21 @@ const elements = {
   authModal: document.querySelector("#authModal"),
   authToggleButton: document.querySelector("#authToggleButton"),
   authCloseButton: document.querySelector("#authCloseButton"),
-  authEmailInput: document.querySelector("#authEmailInput"),
-  authPasswordInput: document.querySelector("#authPasswordInput"),
   authGoogleButton: document.querySelector("#authGoogleButton"),
-  authLoginButton: document.querySelector("#authLoginButton"),
-  authSignupButton: document.querySelector("#authSignupButton"),
   authLogoutButton: document.querySelector("#authLogoutButton"),
   authHint: document.querySelector("#authHint"),
   authStatus: document.querySelector("#authStatus"),
   coffeeModal: document.querySelector("#coffeeModal"),
   coffeeCloseButton: document.querySelector("#coffeeCloseButton"),
   coffeePayButton: document.querySelector("#coffeePayButton"),
+  coffeeCopyButton: document.querySelector("#coffeeCopyButton"),
+  coffeeBankAccount: document.querySelector("#coffeeBankAccount"),
   coffeeHint: document.querySelector("#coffeeHint"),
   gambleModal: document.querySelector("#gambleModal"),
   gambleCloseButton: document.querySelector("#gambleCloseButton"),
   gambleToggleButton: document.querySelector("#gambleToggleButton"),
   gambleWallet: document.querySelector("#gambleWallet"),
+  gambleBetOptions: document.querySelector("#gambleBetOptions"),
   gambleBetInput: document.querySelector("#gambleBetInput"),
   gambleHint: document.querySelector("#gambleHint"),
   gambleTabs: document.querySelector(".gamble-tabs"),
@@ -255,6 +254,7 @@ const elements = {
   themeToggleButton: document.querySelector("#themeToggleButton"),
   workButton: document.querySelector("#workButton"),
   topWorkButton: document.querySelector("#topWorkButton"),
+  topGambleButton: document.querySelector("#topGambleButton"),
   resetButton: document.querySelector("#resetButton"),
   backButton: document.querySelector("#backButton"),
   stayButton: document.querySelector("#stayButton"),
@@ -576,6 +576,19 @@ function playSound(name) {
       playTone(880, 0.08, "triangle", 0.07);
       playTone(1175, 0.1, "triangle", 0.06, 0.08);
       playTone(1568, 0.12, "triangle", 0.05, 0.16);
+    },
+    gambleWin: () => {
+      playTone(1047, 0.11, "triangle", 0.42);
+      playTone(1568, 0.13, "triangle", 0.38, 0.08);
+      playTone(2093, 0.18, "sine", 0.34, 0.17);
+      playTone(2637, 0.22, "sine", 0.24, 0.28);
+      playNoiseBurst(0.08, 0.08, 0.02, "bandpass", 3200);
+    },
+    gambleLose: () => {
+      playSweep(523, 196, 0.34, "triangle", 0.18);
+      playTone(165, 0.28, "sine", 0.12, 0.25);
+      playTone(131, 0.38, "sine", 0.1, 0.42);
+      playNoiseBurst(0.18, 0.045, 0.12, "lowpass", 520);
     },
     enhance: () => {
       playTone(392, 0.08, "sine", 0.055);
@@ -1230,34 +1243,9 @@ async function loadCloudGame(user) {
   }
 }
 
-function getAuthEmail() {
-  return elements.authEmailInput.value.trim();
-}
-
-function getAuthPassword() {
-  return elements.authPasswordInput.value;
-}
-
-function validateAuthFields() {
-  const email = getAuthEmail();
-  const password = getAuthPassword();
-  if (!email) return "이메일을 입력하세요.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "이메일 형식이 올바르지 않습니다.";
-  if (!password) return "비밀번호를 입력하세요.";
-  if (password.length < 6) return "비밀번호는 6글자 이상으로 입력하세요.";
-  return "";
-}
-
 function getAuthErrorMessage(error) {
   const code = error?.code || "";
-  if (code.includes("invalid-email")) return "이메일 형식이 올바르지 않습니다.";
-  if (code.includes("missing-password")) return "비밀번호를 입력하세요.";
-  if (code.includes("weak-password")) return "비밀번호는 6글자 이상으로 입력하세요.";
-  if (code.includes("email-already-in-use")) return "이미 가입된 이메일입니다. 로그인하세요.";
-  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
-    return "이메일 또는 비밀번호가 맞지 않습니다.";
-  }
-  if (code.includes("operation-not-allowed")) return "Firebase 콘솔에서 Google 또는 이메일 로그인을 켜야 합니다.";
+  if (code.includes("operation-not-allowed")) return "Firebase 콘솔에서 Google 로그인을 켜야 합니다.";
   if (code.includes("configuration-not-found")) return "Firebase Authentication 설정이 아직 없습니다. 콘솔에서 로그인 제공업체를 먼저 켜야 합니다.";
   if (code.includes("popup-closed-by-user")) return "Google 로그인 창이 닫혔습니다.";
   if (code.includes("popup-blocked")) return "브라우저가 Google 로그인 팝업을 차단했습니다.";
@@ -1272,7 +1260,7 @@ function getAuthErrorMessage(error) {
 function openAuthModal() {
   elements.authModal.classList.remove("hidden");
   renderAuth();
-  window.setTimeout(() => elements.authEmailInput.focus(), 50);
+  window.setTimeout(() => elements.authGoogleButton.focus(), 50);
 }
 
 function closeAuthModal() {
@@ -1294,10 +1282,6 @@ function renderAuth() {
     : "로그인하면 다른 기기에서도 저장 데이터를 불러올 수 있습니다.";
   elements.authLogoutButton.classList.toggle("hidden", !signedIn);
   elements.authGoogleButton.disabled = signedIn || cloudSaveLoading;
-  elements.authLoginButton.disabled = signedIn || cloudSaveLoading;
-  elements.authSignupButton.disabled = signedIn || cloudSaveLoading;
-  elements.authEmailInput.disabled = signedIn || cloudSaveLoading;
-  elements.authPasswordInput.disabled = signedIn || cloudSaveLoading;
 }
 
 async function loginWithGoogle() {
@@ -1310,47 +1294,6 @@ async function loginWithGoogle() {
   try {
     await signInWithPopup(firebaseAuth, googleAuthProvider);
     elements.authHint.textContent = "Google 로그인 완료. 저장 데이터를 확인 중입니다.";
-  } catch (error) {
-    elements.authHint.textContent = getAuthErrorMessage(error);
-  }
-}
-
-async function loginWithPassword() {
-  if (!firebaseAuth) {
-    elements.authHint.textContent = "Firebase 연결이 준비되지 않았습니다.";
-    return;
-  }
-
-  const validationMessage = validateAuthFields();
-  if (validationMessage) {
-    elements.authHint.textContent = validationMessage;
-    return;
-  }
-
-  elements.authHint.textContent = "로그인 중...";
-  try {
-    await signInWithEmailAndPassword(firebaseAuth, getAuthEmail(), getAuthPassword());
-  } catch (error) {
-    elements.authHint.textContent = getAuthErrorMessage(error);
-  }
-}
-
-async function signupWithPassword() {
-  if (!firebaseAuth) {
-    elements.authHint.textContent = "Firebase 연결이 준비되지 않았습니다.";
-    return;
-  }
-
-  const validationMessage = validateAuthFields();
-  if (validationMessage) {
-    elements.authHint.textContent = validationMessage;
-    return;
-  }
-
-  elements.authHint.textContent = "계정 생성 중...";
-  try {
-    await createUserWithEmailAndPassword(firebaseAuth, getAuthEmail(), getAuthPassword());
-    elements.authHint.textContent = "회원가입 완료. 저장 데이터를 확인 중입니다.";
   } catch (error) {
     elements.authHint.textContent = getAuthErrorMessage(error);
   }
@@ -1578,14 +1521,37 @@ function closeRankingModal() {
 
 function openCoffeeModal() {
   elements.coffeePayButton.href = COFFEE_PAYMENT_URL;
+  elements.coffeeBankAccount.textContent = `우리은행 ${COFFEE_BANK_ACCOUNT}`;
   elements.coffeeHint.textContent = COFFEE_PAYMENT_URL
-    ? "버튼을 누르면 카카오페이 송금 페이지가 열립니다."
+    ? "웹에서는 계좌번호를 복사해서 송금하고, 모바일에서는 카카오페이를 사용할 수 있습니다."
     : "결제 링크가 아직 설정되지 않았습니다. script.js의 COFFEE_PAYMENT_URL에 결제 주소를 넣어주세요.";
   elements.coffeeModal.classList.remove("hidden");
 }
 
 function closeCoffeeModal() {
   elements.coffeeModal.classList.add("hidden");
+}
+
+async function copyCoffeeAccount() {
+  const text = COFFEE_BANK_ACCOUNT;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const input = document.createElement("input");
+      input.value = text;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.append(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
+    elements.coffeeHint.textContent = `계좌번호를 복사했습니다: ${text}`;
+  } catch {
+    elements.coffeeHint.textContent = `복사에 실패했습니다. 계좌번호: ${text}`;
+  }
 }
 
 function openGambleModal() {
@@ -1605,6 +1571,7 @@ function resetGambleStages() {
   elements.oddEvenResult.textContent = "홀 또는 짝을 선택하세요";
   elements.ladderStage.classList.remove("running", "success", "fail");
   elements.ladderMarker.className = "ladder-marker";
+  clearLadderRungs();
   elements.ladderResult.textContent = "1, 2, 3줄 중 하나를 선택하세요";
 }
 
@@ -1617,24 +1584,47 @@ function setGambleType(type) {
 
 function getGambleBetAmount() {
   const parsed = Math.floor(Number(elements.gambleBetInput.value));
-  const maxPlatinum = Math.floor(Number.MAX_SAFE_INTEGER / PLATINUM_VALUE);
-  const platinum = Number.isFinite(parsed) ? Math.min(maxPlatinum, Math.max(1, parsed)) : 1;
-  elements.gambleBetInput.value = platinum;
-  return platinum * PLATINUM_VALUE;
+  return Number.isFinite(parsed) ? Math.max(MIN_GAMBLE_BET, parsed) : MIN_GAMBLE_BET;
 }
 
 function canStartGamble(betAmount) {
   return !gambleInProgress && betAmount >= MIN_GAMBLE_BET && state.gold >= betAmount;
 }
 
+function updateGambleBetQuickSelection(betAmount) {
+  elements.gambleBetOptions.querySelectorAll("[data-bet-amount]").forEach((button) => {
+    button.classList.toggle("selected", Number(button.dataset.betAmount) === betAmount);
+  });
+}
+
+function addGambleBet(amount) {
+  const addAmount = Number(amount);
+  if (gambleInProgress || !GAMBLE_BET_AMOUNTS.includes(addAmount)) return;
+  const nextAmount = Math.min(Number.MAX_SAFE_INTEGER, getGambleBetAmount() + addAmount);
+  elements.gambleBetInput.value = nextAmount;
+  updateGambleBetQuickSelection(nextAmount);
+  elements.gambleHint.textContent = `${formatGold(addAmount)} 추가, 총 ${formatGold(nextAmount)} 배팅`;
+  renderGamble();
+}
+
+function updateCustomGambleBet() {
+  if (gambleInProgress) return;
+  const betAmount = getGambleBetAmount();
+  elements.gambleBetInput.value = betAmount;
+  updateGambleBetQuickSelection(betAmount);
+  elements.gambleHint.textContent = `${formatGold(betAmount)} 배팅 선택`;
+  renderGamble();
+}
+
 function finishGamble({ gameName, choiceText, resultText, won, betAmount, multiplier }) {
   if (won) {
     const payout = betAmount * multiplier;
     state.gold = Math.min(Number.MAX_SAFE_INTEGER, state.gold + payout);
-    playSound("gold");
+    playSound("gambleWin");
     elements.gambleHint.textContent = `${gameName} 성공! ${formatGold(payout)} 획득`;
     addLog(`${gameName} 성공: ${choiceText} 선택, ${resultText} 결과, ${formatGold(payout)} 획득`, "success");
   } else {
+    playSound("gambleLose");
     elements.gambleHint.textContent = `${gameName} 실패. ${formatGold(betAmount)} 잃었습니다.`;
     addLog(`${gameName} 실패: ${choiceText} 선택, ${resultText} 결과, ${formatGold(betAmount)} 손실`, "fail");
   }
@@ -1648,7 +1638,7 @@ function startOddEvenGamble(choice) {
   if (!canStartGamble(betAmount)) {
     elements.gambleHint.textContent = state.gold < betAmount
       ? `골드가 부족합니다. 필요 금액: ${formatGold(betAmount)}`
-      : "최소 배팅금액은 1💠백금입니다.";
+      : `최소 배팅금액은 ${formatGold(MIN_GAMBLE_BET)}입니다.`;
     return;
   }
 
@@ -1684,18 +1674,60 @@ function startOddEvenGamble(choice) {
   }, 1050);
 }
 
-function getLadderPath(choice, result) {
-  const start = Math.min(3, Math.max(1, Number(choice)));
-  const end = Math.min(3, Math.max(1, Number(result)));
-  const middle = start === end ? start : 6 - start - end;
-  return [
-    { lane: start, y: 0 },
-    { lane: start, y: 22 },
-    { lane: middle, y: 38 },
-    { lane: middle, y: 58 },
-    { lane: end, y: 74 },
-    { lane: end, y: 100 },
-  ];
+function clearLadderRungs() {
+  document.querySelectorAll(".ladder-board .ladder-rung").forEach((rung) => rung.remove());
+}
+
+function createRandomLadderRungs() {
+  const rungCount = 4 + Math.floor(Math.random() * 3);
+  const rungs = [];
+  let lastBridge = 0;
+
+  for (let index = 0; index < rungCount; index += 1) {
+    const y = 14 + index * (72 / Math.max(1, rungCount - 1)) + Math.random() * 5 - 2.5;
+    const bridge = lastBridge === 1 ? 2 : lastBridge === 2 ? 1 : (Math.random() < 0.5 ? 1 : 2);
+    rungs.push({
+      y: Math.max(10, Math.min(88, y)),
+      from: bridge,
+      to: bridge + 1,
+    });
+    lastBridge = bridge;
+  }
+
+  return rungs.sort((a, b) => a.y - b.y);
+}
+
+function renderLadderRungs(rungs) {
+  const board = elements.ladderMarker.parentElement;
+  clearLadderRungs();
+  rungs.forEach((rung) => {
+    const element = document.createElement("div");
+    element.className = "ladder-rung";
+    element.style.left = rung.from === 1 ? "0" : "50%";
+    element.style.top = `${rung.y}%`;
+    board.insertBefore(element, elements.ladderMarker);
+  });
+}
+
+function getLadderPath(choice, rungs) {
+  let lane = Math.min(3, Math.max(1, Number(choice)));
+  let y = 0;
+  const path = [{ lane, y }];
+
+  rungs.forEach((rung) => {
+    path.push({ lane, y: rung.y });
+    if (lane === rung.from) {
+      lane = rung.to;
+      path.push({ lane, y: rung.y });
+    } else if (lane === rung.to) {
+      lane = rung.from;
+      path.push({ lane, y: rung.y });
+    }
+    y = rung.y;
+  });
+
+  path.push({ lane, y: 100 });
+  return path;
 }
 
 function setLadderMarkerPosition(point) {
@@ -1715,19 +1747,21 @@ function startLadderGamble(choice) {
   if (!canStartGamble(betAmount)) {
     elements.gambleHint.textContent = state.gold < betAmount
       ? `골드가 부족합니다. 필요 금액: ${formatGold(betAmount)}`
-      : "최소 배팅금액은 1💠백금입니다.";
+      : `최소 배팅금액은 ${formatGold(MIN_GAMBLE_BET)}입니다.`;
     return;
   }
 
   gambleInProgress = true;
   state.gold -= betAmount;
-  const result = Math.floor(Math.random() * 3) + 1;
+  const rungs = createRandomLadderRungs();
+  const path = getLadderPath(choice, rungs);
+  const result = path[path.length - 1].lane;
   const won = Number(choice) === result;
-  const path = getLadderPath(choice, result);
 
   elements.ladderStage.classList.remove("success", "fail");
   elements.ladderStage.classList.add("running");
   elements.ladderMarker.className = "ladder-marker show";
+  renderLadderRungs(rungs);
   setLadderMarkerPosition(path[0]);
   elements.ladderResult.textContent = `${choice}줄 출발`;
   elements.gambleHint.textContent = `${formatGold(betAmount)} 배팅`;
@@ -2018,12 +2052,11 @@ function renderShop() {
 }
 
 function renderGamble() {
-  const parsed = Math.floor(Number(elements.gambleBetInput.value));
-  const platinum = Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
-  const betAmount = Math.max(MIN_GAMBLE_BET, platinum * PLATINUM_VALUE);
+  const betAmount = getGambleBetAmount();
   const canBet = canStartGamble(betAmount);
 
   elements.gambleWallet.innerHTML = `보유 ${formatGoldHtml(state.gold)}`;
+  updateGambleBetQuickSelection(betAmount);
   elements.oddEvenGame.classList.toggle("hidden", activeGambleType !== "oddEven");
   elements.ladderGame.classList.toggle("hidden", activeGambleType !== "ladder");
   elements.gambleTabs.querySelectorAll("[data-gamble-tab]").forEach((button) => {
@@ -2032,6 +2065,9 @@ function renderGamble() {
   });
   elements.gambleModal.querySelectorAll("[data-odd-even-choice], [data-ladder-choice]").forEach((button) => {
     button.disabled = !canBet;
+  });
+  elements.gambleBetOptions.querySelectorAll("[data-bet-amount]").forEach((button) => {
+    button.disabled = gambleInProgress;
   });
   elements.gambleBetInput.disabled = gambleInProgress;
   elements.gambleCloseButton.disabled = gambleInProgress;
@@ -2641,18 +2677,27 @@ elements.rankingToggleButton.addEventListener("click", openRankingModal);
 if (elements.authToggleButton) elements.authToggleButton.addEventListener("click", openAuthModal);
 elements.authCloseButton.addEventListener("click", closeAuthModal);
 elements.authGoogleButton.addEventListener("click", loginWithGoogle);
-elements.authLoginButton.addEventListener("click", loginWithPassword);
-elements.authSignupButton.addEventListener("click", signupWithPassword);
 elements.authLogoutButton.addEventListener("click", logoutAuth);
 elements.themeToggleButton.addEventListener("click", toggleTheme);
 elements.workButton.addEventListener("click", showBattle);
 elements.topWorkButton.addEventListener("click", showBattle);
+elements.topGambleButton.addEventListener("click", openGambleModal);
 elements.resetButton.addEventListener("click", resetGame);
 elements.backButton.addEventListener("click", showUpgrade);
 elements.stayButton.addEventListener("click", showUpgrade);
 elements.gambleToggleButton.addEventListener("click", openGambleModal);
 elements.gambleCloseButton.addEventListener("click", closeGambleModal);
-elements.gambleBetInput.addEventListener("input", renderGamble);
+elements.gambleBetOptions.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bet-amount]");
+  if (!button) return;
+  addGambleBet(button.dataset.betAmount);
+});
+elements.gambleBetInput.addEventListener("input", () => {
+  const betAmount = getGambleBetAmount();
+  updateGambleBetQuickSelection(betAmount);
+  renderGamble();
+});
+elements.gambleBetInput.addEventListener("change", updateCustomGambleBet);
 elements.attackButton.addEventListener("pointerdown", prepareSwordAttackSound);
 elements.attackButton.addEventListener("click", attackMonster);
 elements.autoAttackButton.addEventListener("click", toggleAutoAttack);
@@ -2687,6 +2732,7 @@ elements.rankingRegisterButton.addEventListener("click", registerRanking);
 elements.completionDoneButton.addEventListener("click", closeCompletionModal);
 elements.rankingCloseButton.addEventListener("click", closeRankingModal);
 elements.coffeeCloseButton.addEventListener("click", closeCoffeeModal);
+elements.coffeeCopyButton.addEventListener("click", copyCoffeeAccount);
 document.querySelectorAll("[data-coffee-button]").forEach((button) => {
   button.addEventListener("click", openCoffeeModal);
 });

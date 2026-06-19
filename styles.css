@@ -257,13 +257,8 @@ button:disabled {
 
 .auth-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 0.6rem;
-}
-
-.google-auth-button {
-  grid-column: 1 / -1;
 }
 
 .modal-hint {
@@ -283,6 +278,28 @@ button:disabled {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.bank-transfer-box {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem;
+  background: var(--surface-bg);
+}
+
+.bank-transfer-box span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.bank-transfer-box strong {
+  color: var(--gold);
+  font-size: 1.1rem;
+  line-height: 1.2;
 }
 
 .coffee-button {
@@ -322,27 +339,63 @@ button:disabled {
 
 .gamble-bet-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 0.6rem;
   margin: 0.75rem 0;
   color: var(--muted);
   font-weight: 900;
 }
 
-.gamble-bet-row input {
-  min-width: 0;
+.gamble-bet-row > span {
   min-height: 2.8rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.gamble-bet-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.gamble-bet-options .secondary {
+  min-height: 2.8rem;
+  padding: 0 0.45rem;
+  font-size: 0.84rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.gamble-bet-options .selected {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(246, 200, 95, 0.22);
+}
+
+.gamble-custom-bet {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.gamble-custom-bet input {
+  min-width: 0;
+  min-height: 2.55rem;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0 0.8rem;
+  padding: 0 0.65rem;
   background: var(--deeper-bg);
   color: var(--text);
   font: inherit;
   font-weight: 900;
 }
 
-.gamble-bet-row em {
+.gamble-custom-bet em {
   color: var(--gold);
   font-style: normal;
 }
@@ -467,21 +520,6 @@ button:disabled {
   width: 50%;
   height: 0.24rem;
   border-radius: 999px;
-}
-
-.ladder-rung.rung-1 {
-  left: 0;
-  top: 24%;
-}
-
-.ladder-rung.rung-2 {
-  left: 50%;
-  top: 44%;
-}
-
-.ladder-rung.rung-3 {
-  left: 0;
-  top: 68%;
 }
 
 .ladder-marker {
@@ -662,7 +700,10 @@ h1 {
   position: relative;
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
+  max-width: min(100%, 28rem);
 }
 
 .compact-action {
