@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>검 강화하기</title>
-    <link rel="stylesheet" href="styles.css?v=20260619-bank-copy" />
+    <link rel="stylesheet" href="styles.css?v=20260619-mobile-auth" />
   </head>
   <body>
     <main class="game">
@@ -85,6 +85,18 @@
           <p class="modal-hint" id="coffeeHint"></p>
         </div>
       </div>
+      <div class="modal-overlay hidden" id="shopModal" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+        <div class="modal-card shop-card">
+          <div class="modal-title-row">
+            <div>
+              <p class="eyebrow">상점</p>
+              <h2 id="shopTitle">아이템 구매</h2>
+            </div>
+            <button class="icon-button" id="shopCloseButton" type="button">닫기</button>
+          </div>
+          <div class="shop-items" id="shopItems"></div>
+        </div>
+      </div>
       <div class="modal-overlay hidden" id="gambleModal" role="dialog" aria-modal="true" aria-labelledby="gambleTitle">
         <div class="modal-card gamble-card">
           <div class="modal-title-row">
@@ -101,6 +113,8 @@
               <button class="secondary" type="button" data-bet-amount="10000">+1만</button>
               <button class="secondary" type="button" data-bet-amount="100000">+10만</button>
               <button class="secondary" type="button" data-bet-amount="1000000">+1백금</button>
+              <button class="secondary" type="button" data-bet-amount="10000000">+10백금</button>
+              <button class="secondary" id="gambleBetResetButton" type="button">초기화</button>
             </div>
             <label class="gamble-custom-bet">
               <span>직접 입력</span>
@@ -151,8 +165,8 @@
           </div>
           <div class="top-actions">
             <button class="secondary compact-action" id="shopToggleButton" type="button">🏠 상점</button>
-            <button class="secondary compact-action" id="topWorkButton" type="button">몬스터</button>
-            <button class="secondary compact-action" id="topGambleButton" type="button">도박</button>
+            <button class="secondary compact-action" id="topWorkButton" type="button">👹 몬스터</button>
+            <button class="secondary compact-action" id="topGambleButton" type="button">🎲 도박</button>
             <button class="secondary compact-action" id="autoEnhanceButton" type="button">자동 강화</button>
             <div class="enhance-settings top-enhance-settings hidden" id="enhanceSettings" aria-label="자동 강화 설정">
               <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
@@ -179,11 +193,6 @@
           <div class="inventory-items" id="inventoryItems"></div>
         </div>
 
-        <div class="shop-block hidden" id="shopBlock" aria-label="아이템 상점">
-          <h2>상점</h2>
-          <div class="shop-items" id="shopItems"></div>
-        </div>
-
         <div class="controls">
           <button class="primary" id="enhanceButton" type="button">강화하기</button>
           <button class="secondary" id="workButton" type="button">몬스터 잡기</button>
@@ -199,7 +208,7 @@
           </div>
           <div class="top-actions">
             <button class="secondary compact-action" id="autoAttackButton" type="button">자동 공격</button>
-            <button class="secondary compact-action" id="gambleToggleButton" type="button">도박</button>
+            <button class="secondary compact-action" id="gambleToggleButton" type="button">🎲 도박</button>
             <button class="icon-button" id="backButton" type="button">강화로</button>
           </div>
         </div>
@@ -323,6 +332,6 @@
       </aside>
     </main>
 
-    <script type="module" src="script.js?v=20260619-bank-copy"></script>
+    <script type="module" src="script.js?v=20260619-mobile-auth"></script>
   </body>
 </html>

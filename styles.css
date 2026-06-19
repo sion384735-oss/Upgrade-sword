@@ -69,6 +69,10 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
 }
 
 button:disabled {
@@ -360,11 +364,10 @@ button:disabled {
 }
 
 .gamble-bet-options .secondary {
-  min-height: 2.8rem;
-  padding: 0 0.45rem;
-  font-size: 0.84rem;
+  min-height: 3.1rem;
+  padding: 0.4rem 0.45rem;
+  font-size: 0.86rem;
   font-weight: 900;
-  white-space: nowrap;
 }
 
 .gamble-bet-options .selected {
@@ -413,8 +416,8 @@ button:disabled {
 
 .gamble-tabs .secondary,
 .gamble-choice-row button {
-  min-height: 2.65rem;
-  padding: 0 0.65rem;
+  min-height: 3rem;
+  padding: 0.45rem 0.75rem;
   font-size: 0.92rem;
   font-weight: 900;
 }
@@ -690,8 +693,8 @@ h1 {
 
 .icon-button {
   flex: 0 0 auto;
-  min-height: 2.55rem;
-  padding: 0 0.8rem;
+  min-height: 2.85rem;
+  padding: 0.35rem 0.9rem;
   color: var(--muted);
   font-size: 0.86rem;
 }
@@ -707,10 +710,10 @@ h1 {
 }
 
 .compact-action {
-  min-height: 2.55rem;
-  padding: 0 0.7rem;
+  min-height: 2.85rem;
+  padding: 0.35rem 0.85rem;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.88rem;
 }
 
 .top-enhance-settings {
@@ -1079,8 +1082,7 @@ button .gold-coin-icon,
 }
 
 .inventory-block,
-.drop-block,
-.shop-block {
+.drop-block {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.7rem;
@@ -1088,8 +1090,7 @@ button .gold-coin-icon,
 }
 
 .inventory-block h2,
-.drop-block h2,
-.shop-block h2 {
+.drop-block h2 {
   margin-bottom: 0.5rem;
   color: var(--muted);
   font-size: 0.9rem;
@@ -1276,6 +1277,10 @@ button .gold-coin-icon,
   gap: 0.45rem;
 }
 
+.shop-card {
+  width: min(34rem, 100%);
+}
+
 .shop-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1325,9 +1330,10 @@ button .gold-coin-icon,
 }
 
 .shop-buy {
-  min-height: 2.05rem;
+  min-height: 2.45rem;
   border: 1px solid var(--line);
   border-radius: 8px;
+  padding: 0.35rem 0.45rem;
   background: var(--panel-soft);
   font-size: 0.82rem;
   font-weight: 900;
@@ -1461,8 +1467,8 @@ button .gold-coin-icon,
 
 .primary,
 .secondary {
-  min-height: 3rem;
-  padding: 0 0.85rem;
+  min-height: 3.2rem;
+  padding: 0.45rem 0.95rem;
   font-weight: 800;
 }
 
@@ -1487,11 +1493,10 @@ button .gold-coin-icon,
 }
 
 .settings-row .secondary {
-  min-height: 2.55rem;
+  min-height: 3rem;
   width: 100%;
-  padding: 0 0.55rem;
+  padding: 0.4rem 0.65rem;
   font-size: 0.82rem;
-  white-space: nowrap;
 }
 
 .stats-grid {
@@ -1866,6 +1871,41 @@ button .gold-coin-icon,
     padding: 0.85rem;
   }
 
+  .modal-overlay {
+    align-items: start;
+    padding: 0.5rem;
+    overflow-y: auto;
+    place-items: start center;
+  }
+
+  .modal-card {
+    width: min(100%, 32rem);
+    max-height: calc(100dvh - 1rem);
+    overflow-y: auto;
+    padding: 0.85rem;
+  }
+
+  .gamble-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .modal-title-row {
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+
+  .modal-card h2 {
+    margin-bottom: 0;
+    font-size: 1.45rem;
+  }
+
+  .topbar {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
   .controls,
   .battle-controls,
   .stats-grid {
@@ -1886,37 +1926,85 @@ button .gold-coin-icon,
   }
 
   .top-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.35rem;
+    width: 100%;
+    max-width: none;
+    justify-content: stretch;
+  }
+
+  .battle-view .top-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .top-enhance-settings {
+    position: static;
+    grid-column: 1 / -1;
     right: 0;
-    width: min(18rem, calc(100vw - 1rem));
+    width: 100%;
     grid-template-columns: 2.35rem minmax(6.2rem, 1fr) 2.35rem;
   }
 
   .primary,
   .secondary {
     min-height: 3.6rem;
-    padding: 0 1rem;
+    padding: 0.55rem 1rem;
     font-size: 1.05rem;
   }
 
   .settings-row .secondary {
-    min-height: 2.75rem;
-    padding: 0 0.45rem;
+    min-height: 3.05rem;
+    padding: 0.45rem 0.55rem;
     font-size: 0.82rem;
+  }
+
+  .gamble-bet-row {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .gamble-bet-row > span {
+    min-height: 0;
+    font-size: 0.86rem;
+  }
+
+  .gamble-bet-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .gamble-bet-options .secondary {
+    min-height: 3rem;
+    padding: 0.45rem 0.4rem;
+    font-size: 0.84rem;
+  }
+
+  .gamble-custom-bet {
+    margin-top: 0;
+  }
+
+  .gamble-tabs,
+  .gamble-choice-row {
+    gap: 0.35rem;
+  }
+
+  .gamble-tabs .secondary,
+  .gamble-choice-row button {
+    min-height: 3.05rem;
+    padding: 0.5rem 0.45rem;
+    font-size: 0.92rem;
   }
 
   .compact-action,
   .icon-button {
-    min-height: 2.8rem;
+    min-height: 3.05rem;
     padding: 0.68rem 0.72rem;
     font-size: 0.95rem;
   }
 
   #swordName {
-    max-width: calc(100vw - 15rem);
+    max-width: calc(100vw - 2rem);
     font-size: clamp(1.1rem, 5vw, 1.65rem);
   }
 
