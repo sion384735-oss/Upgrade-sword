@@ -200,6 +200,8 @@ const elements = {
   rankingList: document.querySelector("#rankingList"),
   rankingCloseButton: document.querySelector("#rankingCloseButton"),
   rankingTabs: document.querySelector(".ranking-tabs"),
+  settingsRow: document.querySelector("#settingsRow"),
+  mobileSettingsButtons: document.querySelectorAll("[data-mobile-settings-button]"),
   rankingToggleButton: document.querySelector("#rankingToggleButton"),
   authModal: document.querySelector("#authModal"),
   authToggleButton: document.querySelector("#authToggleButton"),
@@ -1466,7 +1468,7 @@ async function loadRemoteRankings() {
 }
 
 function sanitizeRankingName(value) {
-  return value.replace(/[^A-Za-z]/g, "").slice(0, 10);
+  return value.replace(/[^A-Za-z0-9가-힣]/g, "").slice(0, 10);
 }
 
 function escapeHtml(value) {
@@ -1581,6 +1583,21 @@ function addLog(text, type = "") {
   }
 }
 
+function getRankingMetricHtml(entry) {
+  if (activeRankingSort === "gold") {
+    const value = Number.isFinite(entry.spentGold) ? formatGoldHtml(entry.spentGold) : "-";
+    return `<em class="ranking-metric gold">${value}</em>`;
+  }
+  if (activeRankingSort === "attempts") {
+    const value = Number.isFinite(entry.enhanceAttempts)
+      ? `${Number(entry.enhanceAttempts).toLocaleString("ko-KR")}회`
+      : "-";
+    return `<em class="ranking-metric attempts">${value}</em>`;
+  }
+  const value = Number.isFinite(entry.clearTimeMs) ? formatDuration(entry.clearTimeMs) : "-";
+  return `<em class="ranking-metric time"><span class="ranking-icon time" aria-hidden="true"></span>${value}</em>`;
+}
+
 async function renderRankingList() {
   const currentToken = ++rankingRenderToken;
   elements.rankingTabs.querySelectorAll("[data-ranking-sort]").forEach((button) => {
@@ -1615,10 +1632,7 @@ async function renderRankingList() {
       <div>
         <span>${escapeHtml(entry.name)}</span>
         <div class="ranking-meta">
-          <em>시간 ${Number.isFinite(entry.clearTimeMs) ? formatDuration(entry.clearTimeMs) : "-"}</em>
-          <em>골드 ${Number.isFinite(entry.spentGold) ? formatGoldHtml(entry.spentGold) : "-"}</em>
-          <em>시도 ${Number.isFinite(entry.enhanceAttempts) ? `${Number(entry.enhanceAttempts).toLocaleString("ko-KR")}회` : "-"}</em>
-          <em>${formatRankingDate(entry.time)}</em>
+          ${getRankingMetricHtml(entry)}
         </div>
       </div>
     </div>
@@ -1632,6 +1646,20 @@ function openRankingModal() {
 
 function closeRankingModal() {
   elements.rankingModal.classList.add("hidden");
+}
+
+function closeMobileSettings() {
+  elements.settingsRow.classList.remove("open");
+  elements.mobileSettingsButtons.forEach((button) => {
+    button.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleMobileSettings() {
+  const isOpen = elements.settingsRow.classList.toggle("open");
+  elements.mobileSettingsButtons.forEach((button) => {
+    button.setAttribute("aria-expanded", String(isOpen));
+  });
 }
 
 function openCoffeeModal() {
@@ -2049,7 +2077,7 @@ function showCompletionModal(soundWaited = false) {
   elements.rankingNameInput.value = "";
   elements.rankingNameInput.disabled = false;
   elements.rankingRegisterButton.disabled = false;
-  elements.rankingNameHint.textContent = "랭킹 닉네임은 영어만 가능합니다. 최대 10글자.";
+  elements.rankingNameHint.textContent = "랭킹 닉네임은 한글, 영어, 숫자로 최대 10글자까지 가능합니다.";
   elements.completionModal.classList.remove("hidden");
   window.requestAnimationFrame(() => {
     startCompletionCelebration();
@@ -2078,7 +2106,7 @@ async function registerRanking() {
   elements.rankingNameInput.value = name;
 
   if (!name) {
-    elements.rankingNameHint.textContent = "영어 닉네임을 입력하세요.";
+    elements.rankingNameHint.textContent = "한글, 영어, 숫자로 닉네임을 입력하세요.";
     return;
   }
 
@@ -2130,7 +2158,7 @@ function scheduleRankingRegistration() {
   const name = sanitizeRankingName(elements.rankingNameInput.value);
   if (!name) {
     rankingAutoRegisterTimer = null;
-    elements.rankingNameHint.textContent = "영어 닉네임을 입력하세요.";
+    elements.rankingNameHint.textContent = "한글, 영어, 숫자로 닉네임을 입력하세요.";
     return;
   }
 
@@ -2947,14 +2975,29 @@ elements.autoItemStatus.addEventListener("click", (event) => {
 });
 elements.enhanceTargetPrevButton.addEventListener("click", () => changeEnhanceTarget(-1));
 elements.enhanceTargetNextButton.addEventListener("click", () => changeEnhanceTarget(1));
-elements.soundToggleButton.addEventListener("click", toggleSound);
-elements.bgmToggleButton.addEventListener("click", toggleBgm);
-elements.rankingToggleButton.addEventListener("click", openRankingModal);
+elements.mobileSettingsButtons.forEach((button) => {
+  button.addEventListener("click", toggleMobileSettings);
+});
+elements.soundToggleButton.addEventListener("click", () => {
+  toggleSound();
+  closeMobileSettings();
+});
+elements.bgmToggleButton.addEventListener("click", () => {
+  toggleBgm();
+  closeMobileSettings();
+});
+elements.rankingToggleButton.addEventListener("click", () => {
+  openRankingModal();
+  closeMobileSettings();
+});
 if (elements.authToggleButton) elements.authToggleButton.addEventListener("click", openAuthModal);
 elements.authCloseButton.addEventListener("click", closeAuthModal);
 elements.authGoogleButton.addEventListener("click", loginWithGoogle);
 elements.authLogoutButton.addEventListener("click", logoutAuth);
-elements.themeToggleButton.addEventListener("click", toggleTheme);
+elements.themeToggleButton.addEventListener("click", () => {
+  toggleTheme();
+  closeMobileSettings();
+});
 elements.workButton.addEventListener("click", showBattle);
 elements.topWorkButton.addEventListener("click", showBattle);
 elements.topGambleButton.addEventListener("click", openGambleModal);
