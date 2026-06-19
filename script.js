@@ -38,7 +38,7 @@ const FIREBASE_CONFIG = {
   measurementId: "G-EM9ZZECBX2",
 };
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
-const COFFEE_PAYMENT_URL = "https://buymeacoffee.com/swordupgrade";
+const COFFEE_PAYMENT_URL = "https://qr.kakaopay.com/FJUnB2V9U3e807610";
 const SUCCESS_CHANCES = [
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
   50, 45, 40, 35, 30, 25, 20, 16, 13, 10,
@@ -1111,7 +1111,7 @@ function closeRankingModal() {
 function openCoffeeModal() {
   elements.coffeePayButton.href = COFFEE_PAYMENT_URL;
   elements.coffeeHint.textContent = COFFEE_PAYMENT_URL
-    ? "결제하기를 누르면 결제 페이지가 열립니다."
+    ? "버튼을 누르면 카카오페이 송금 페이지가 열립니다."
     : "결제 링크가 아직 설정되지 않았습니다. script.js의 COFFEE_PAYMENT_URL에 결제 주소를 넣어주세요.";
   elements.coffeeModal.classList.remove("hidden");
 }

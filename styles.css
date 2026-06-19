@@ -248,14 +248,6 @@ button:disabled {
   text-decoration: none;
 }
 
-.bmc-button-wrap {
-  display: flex;
-  min-height: 3.2rem;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
 .coffee-button {
   margin-top: 0.45rem;
   border: 1px solid rgba(246, 196, 83, 0.5);
@@ -267,6 +259,7 @@ button:disabled {
   font-size: 1.02rem;
   font-weight: 900;
   line-height: 1.1;
+  white-space: nowrap;
   cursor: pointer;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
@@ -1576,6 +1569,11 @@ body.light .level-badge {
   #swordName {
     max-width: calc(100vw - 15rem);
     font-size: clamp(1.1rem, 5vw, 1.65rem);
+  }
+
+  .coffee-button {
+    padding: 0.45rem 0.55rem;
+    font-size: clamp(0.7rem, 2.7vw, 0.82rem);
   }
 
   .enhance-settings {
