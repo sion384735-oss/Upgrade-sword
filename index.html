@@ -9,15 +9,76 @@
   <body>
     <main class="game">
       <div class="destroyed-banner" id="destroyedBanner" aria-hidden="true">DESTROYED</div>
+      <div class="item-depleted-banner" id="itemDepletedBanner" aria-hidden="true">
+        아이템을 모두 소진하셨습니다
+      </div>
+      <div class="fireworks-layer hidden" id="fireworksLayer" aria-hidden="true"></div>
+      <div class="modal-overlay hidden" id="completionModal" role="dialog" aria-modal="true" aria-labelledby="completionTitle">
+        <div class="modal-card completion-card">
+          <p class="eyebrow">강화 완료</p>
+          <h2 id="completionTitle">+30 달성</h2>
+          <p>최대 강화에 성공했습니다. 이름을 등록하면 랭킹에 저장됩니다.</p>
+          <div class="ranking-register">
+            <input id="rankingNameInput" type="text" maxlength="10" autocomplete="off" placeholder="NAME" aria-label="랭킹 이름" />
+            <button class="primary" id="rankingRegisterButton" type="button">랭킹 등록</button>
+          </div>
+          <p class="modal-hint" id="rankingNameHint">영어만 최대 10글자까지 입력할 수 있습니다.</p>
+          <button class="secondary" id="completionDoneButton" type="button">완료</button>
+        </div>
+      </div>
+      <div class="modal-overlay hidden" id="rankingModal" role="dialog" aria-modal="true" aria-labelledby="rankingTitle">
+        <div class="modal-card">
+          <div class="modal-title-row">
+            <div>
+              <p class="eyebrow">랭킹</p>
+              <h2 id="rankingTitle">+30 달성 랭킹</h2>
+            </div>
+            <button class="icon-button" id="rankingCloseButton" type="button">닫기</button>
+          </div>
+          <div class="ranking-tabs" aria-label="랭킹 정렬">
+            <button class="secondary selected" type="button" data-ranking-sort="time">시간</button>
+            <button class="secondary" type="button" data-ranking-sort="gold">골드</button>
+            <button class="secondary" type="button" data-ranking-sort="attempts">시도</button>
+          </div>
+          <div class="ranking-list" id="rankingList"></div>
+        </div>
+      </div>
+      <div class="modal-overlay hidden" id="coffeeModal" role="dialog" aria-modal="true" aria-labelledby="coffeeTitle">
+        <div class="modal-card coffee-card">
+          <div class="modal-title-row">
+            <div>
+              <p class="eyebrow">후원</p>
+              <h2 id="coffeeTitle">개발자에게 커피사주기</h2>
+            </div>
+            <button class="icon-button" id="coffeeCloseButton" type="button">닫기</button>
+          </div>
+          <p>재미있게 플레이했다면 커피 한 잔으로 응원할 수 있습니다.</p>
+          <button class="primary coffee-pay-button" id="coffeePayButton" type="button">결제하기</button>
+          <p class="modal-hint" id="coffeeHint"></p>
+        </div>
+      </div>
+      <button class="reset-corner" id="resetButton" type="button" aria-label="게임 초기화">초기화</button>
       <section class="stage upgrade-view" id="upgradeView" aria-label="검 강화 상태">
         <div class="topbar">
           <div>
             <p class="eyebrow">검 강화하기</p>
             <h1 id="swordName">낡은 철검 +0</h1>
+            <button class="coffee-button" type="button" data-coffee-button>☕ 고생한 개발자에게 커피사주기</button>
           </div>
-          <button class="icon-button" id="resetButton" type="button" aria-label="게임 초기화">
-            초기화
-          </button>
+          <div class="top-actions">
+            <button class="secondary compact-action" id="shopToggleButton" type="button">🏠 상점</button>
+            <button class="secondary compact-action" id="topWorkButton" type="button">몬스터</button>
+            <button class="secondary compact-action" id="autoEnhanceButton" type="button">자동 강화</button>
+            <div class="enhance-settings top-enhance-settings hidden" id="enhanceSettings" aria-label="자동 강화 설정">
+              <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
+              <div class="stage-readout">
+                <span>목표 강화</span>
+                <strong id="enhanceTargetReadout">10</strong>
+              </div>
+              <button class="secondary stage-step" id="enhanceTargetNextButton" type="button">▶</button>
+              <button class="secondary" id="autoEnhanceStartButton" type="button">자동 시작</button>
+            </div>
+          </div>
         </div>
 
         <div class="sword-area">
@@ -33,14 +94,9 @@
           <div class="inventory-items" id="inventoryItems"></div>
         </div>
 
-        <div class="enhance-settings" aria-label="자동 강화 설정">
-          <button class="secondary stage-step" id="enhanceTargetPrevButton" type="button">◀</button>
-          <div class="stage-readout">
-            <span>목표 강화</span>
-            <strong id="enhanceTargetReadout">10</strong>
-          </div>
-          <button class="secondary stage-step" id="enhanceTargetNextButton" type="button">▶</button>
-          <button class="secondary" id="autoEnhanceButton" type="button">자동 강화</button>
+        <div class="shop-block hidden" id="shopBlock" aria-label="아이템 상점">
+          <h2>상점</h2>
+          <div class="shop-items" id="shopItems"></div>
         </div>
 
         <div class="controls">
@@ -54,6 +110,7 @@
           <div>
             <p class="eyebrow">골드 벌기</p>
             <h1 id="monsterName">슬라임</h1>
+            <button class="coffee-button" type="button" data-coffee-button>☕ 고생한 개발자에게 커피사주기</button>
           </div>
           <div class="top-actions">
             <button class="secondary compact-action" id="autoAttackButton" type="button">자동 공격</button>
@@ -117,6 +174,7 @@
         <div class="settings-row" aria-label="환경 설정">
           <button class="secondary" id="soundToggleButton" type="button">사운드 ON</button>
           <button class="secondary" id="bgmToggleButton" type="button">BGM OFF</button>
+          <button class="secondary" id="rankingToggleButton" type="button">👑 랭킹</button>
           <button class="secondary" id="themeToggleButton" type="button">화이트 모드</button>
         </div>
 

@@ -2,15 +2,27 @@ const MAX_LEVEL = 30;
 const MAX_MONSTER_LEVEL = 20;
 const BATTLE_TIME_LIMIT = 20;
 const ATTACK_INTERVAL_MS = 450;
+const ATTACK_SOUND_DURATION_MS = 260;
+const ATTACK_SOUND_START_SECONDS = 2;
+const SWORD_ATTACK_SOUND_PATH = "assets/sounds/sword-attack.mp4";
+const SFX_VOLUME = 0.25;
 const BALANCE_VERSION = 3;
 const STORAGE_KEY = "sword-upgrade-save";
+const RANKING_KEY = "sword-upgrade-rankings";
+const RANKING_SORTS = ["time", "gold", "attempts"];
+const COFFEE_PAYMENT_URL = "";
 const SUCCESS_CHANCES = [
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
   50, 45, 40, 35, 30, 25, 20, 16, 13, 10,
-  9, 8, 7, 6, 5.5, 5, 4.5, 4, 3.5, 3,
+  9, 8, 7, 6, 5, 4, 3, 2.1, 1.1, 0.1,
 ];
 const ITEM_ORDER = ["protect", "fallProtect", "boost5", "boost10"];
 const DROP_ITEM_ORDER = ["protect", "fallProtect", "boost5", "boost10"];
+const SHOP_ITEMS = [
+  { itemKey: "protect", price: 1000000 },
+  { itemKey: "fallProtect", price: 500000 },
+  { itemKey: "boost5", price: 500000 },
+];
 const ITEMS = {
   protect: {
     name: "파괴방지권",
@@ -23,9 +35,9 @@ const ITEMS = {
     chanceBonus: 0,
   },
   boost5: {
-    name: "강화확률 5% 증가권",
-    description: "선택 후 강화하면 성공 확률이 5% 증가합니다.",
-    chanceBonus: 5,
+    name: "강화확률 3% 증가권",
+    description: "선택 후 강화하면 성공 확률이 3% 증가합니다.",
+    chanceBonus: 3,
   },
   boost10: {
     name: "강화확률 10% 증가권",
@@ -59,16 +71,26 @@ const state = {
     boost5: 0,
     boost10: 0,
   },
+  runStartedAt: Date.now(),
+  spentGold: 0,
+  enhanceAttempts: 0,
+  maxCompletionShown: false,
 };
 
 let autoAttackTimer = null;
 let autoEnhanceTimer = null;
+let autoEnhanceItemPlan = null;
 let battleTimer = null;
 let battleTimeLeft = BATTLE_TIME_LIMIT;
 let lastAttackAt = 0;
 let audioContext = null;
 let bgmTimer = null;
 let bgmGain = null;
+let enhanceSettingsOpen = false;
+let shopOpen = false;
+let attackSoundIndex = 0;
+let attackSounds = [];
+let activeRankingSort = "time";
 
 const BGM_ROOTS = [110, 103.83, 98, 92.5, 87.31, 82.41, 77.78, 73.42, 69.3, 65.41];
 
@@ -77,6 +99,22 @@ const elements = {
   upgradeView: document.querySelector("#upgradeView"),
   battleView: document.querySelector("#battleView"),
   destroyedBanner: document.querySelector("#destroyedBanner"),
+  itemDepletedBanner: document.querySelector("#itemDepletedBanner"),
+  fireworksLayer: document.querySelector("#fireworksLayer"),
+  completionModal: document.querySelector("#completionModal"),
+  completionDoneButton: document.querySelector("#completionDoneButton"),
+  rankingNameInput: document.querySelector("#rankingNameInput"),
+  rankingRegisterButton: document.querySelector("#rankingRegisterButton"),
+  rankingNameHint: document.querySelector("#rankingNameHint"),
+  rankingModal: document.querySelector("#rankingModal"),
+  rankingList: document.querySelector("#rankingList"),
+  rankingCloseButton: document.querySelector("#rankingCloseButton"),
+  rankingTabs: document.querySelector(".ranking-tabs"),
+  rankingToggleButton: document.querySelector("#rankingToggleButton"),
+  coffeeModal: document.querySelector("#coffeeModal"),
+  coffeeCloseButton: document.querySelector("#coffeeCloseButton"),
+  coffeePayButton: document.querySelector("#coffeePayButton"),
+  coffeeHint: document.querySelector("#coffeeHint"),
   sword: document.querySelector("#sword"),
   swordName: document.querySelector("#swordName"),
   levelBadge: document.querySelector("#levelBadge"),
@@ -94,6 +132,10 @@ const elements = {
   log: document.querySelector("#log"),
   enhanceButton: document.querySelector("#enhanceButton"),
   autoEnhanceButton: document.querySelector("#autoEnhanceButton"),
+  autoEnhanceStartButton: document.querySelector("#autoEnhanceStartButton"),
+  enhanceSettings: document.querySelector("#enhanceSettings"),
+  shopToggleButton: document.querySelector("#shopToggleButton"),
+  shopBlock: document.querySelector("#shopBlock"),
   enhanceTargetPrevButton: document.querySelector("#enhanceTargetPrevButton"),
   enhanceTargetNextButton: document.querySelector("#enhanceTargetNextButton"),
   enhanceTargetReadout: document.querySelector("#enhanceTargetReadout"),
@@ -101,6 +143,7 @@ const elements = {
   bgmToggleButton: document.querySelector("#bgmToggleButton"),
   themeToggleButton: document.querySelector("#themeToggleButton"),
   workButton: document.querySelector("#workButton"),
+  topWorkButton: document.querySelector("#topWorkButton"),
   resetButton: document.querySelector("#resetButton"),
   backButton: document.querySelector("#backButton"),
   stayButton: document.querySelector("#stayButton"),
@@ -126,6 +169,7 @@ const elements = {
   inventoryItems: document.querySelector("#inventoryItems"),
   battleInventoryItems: document.querySelector("#battleInventoryItems"),
   dropRateTable: document.querySelector("#dropRateTable"),
+  shopItems: document.querySelector("#shopItems"),
 };
 
 const swordTitles = [
@@ -162,11 +206,15 @@ const monsterNames = [
 ];
 
 const monsterRewardTable = [
-  0, 100, 450, 1200, 3000, 7500, 17000, 38000, 41000, 60000, 110000,
-  200000, 360000, 650000, 1150000, 2000000, 3400000, 5750000, 9500000,
-  16000000, 26000000,
+  0, 100, 450, 1200, 3000, 3750, 8500, 19000, 20500, 30000, 55000,
+  100000, 180000, 325000, 575000, 1000000, 1700000, 2875000, 4750000,
+  8000000, 13000000,
 ];
-const monsterHpTable = monsterRewardTable.map((reward) => reward * 10);
+const monsterHpTable = [
+  0, 1000, 4500, 12000, 30000, 75000, 170000, 380000, 410000, 600000,
+  1100000, 2000000, 3600000, 6500000, 11500000, 20000000, 34000000,
+  57500000, 95000000, 160000000, 260000000,
+];
 
 function getCost(level) {
   if (level === 0) return 50;
@@ -200,7 +248,7 @@ function playTone(frequency, duration = 0.12, type = "sine", volume = 0.08, dela
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, start);
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(volume * SFX_VOLUME, start + 0.015);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   oscillator.connect(gain);
   gain.connect(context.destination);
@@ -208,13 +256,98 @@ function playTone(frequency, duration = 0.12, type = "sine", volume = 0.08, dela
   oscillator.stop(start + duration + 0.03);
 }
 
+function playSweep(startFrequency, endFrequency, duration = 0.12, type = "sawtooth", volume = 0.06, delay = 0) {
+  const context = getAudioContext();
+  if (context.state === "suspended") context.resume();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const start = context.currentTime + delay;
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(startFrequency, start);
+  oscillator.frequency.exponentialRampToValueAtTime(endFrequency, start + duration);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume * SFX_VOLUME, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.03);
+}
+
+function playNoiseBurst(duration = 0.12, volume = 0.04, delay = 0) {
+  const context = getAudioContext();
+  if (context.state === "suspended") context.resume();
+  const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
+  const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+  const data = buffer.getChannelData(0);
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const gain = context.createGain();
+  const start = context.currentTime + delay;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const fade = 1 - i / sampleCount;
+    data[i] = (Math.random() * 2 - 1) * fade;
+  }
+
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(1600, start);
+  filter.frequency.exponentialRampToValueAtTime(5200, start + duration * 0.55);
+  filter.Q.setValueAtTime(2.6, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume * SFX_VOLUME, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  source.buffer = buffer;
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(context.destination);
+  source.start(start);
+  source.stop(start + duration);
+}
+
+function playSyntheticSwordHit() {
+  playNoiseBurst(0.13, 0.055);
+  playSweep(2400, 340, 0.14, "sawtooth", 0.055);
+  playSweep(1600, 520, 0.09, "triangle", 0.045, 0.045);
+  playTone(1760, 0.055, "triangle", 0.04, 0.095);
+  playTone(2793, 0.04, "sine", 0.03, 0.125);
+  playTone(988, 0.09, "triangle", 0.022, 0.17);
+}
+
+function playSwordAttackClip() {
+  if (!attackSounds.length) {
+    attackSounds = Array.from({ length: 4 }, () => {
+      const audio = new Audio(SWORD_ATTACK_SOUND_PATH);
+      audio.preload = "auto";
+      audio.volume = 0.25;
+      return audio;
+    });
+  }
+
+  const audio = attackSounds[attackSoundIndex];
+  attackSoundIndex = (attackSoundIndex + 1) % attackSounds.length;
+  audio.pause();
+  audio.currentTime = ATTACK_SOUND_START_SECONDS;
+  audio.volume = 0.25;
+
+  const playPromise = audio.play();
+  window.setTimeout(() => {
+    audio.pause();
+    audio.currentTime = ATTACK_SOUND_START_SECONDS;
+  }, ATTACK_SOUND_DURATION_MS);
+
+  if (playPromise?.catch) {
+    playPromise.catch(() => playSyntheticSwordHit());
+  }
+}
+
 function playSound(name) {
   if (!state.soundEnabled) return;
 
   const patterns = {
     hit: () => {
-      playTone(130, 0.08, "sawtooth", 0.08);
-      playTone(70, 0.1, "square", 0.04, 0.02);
+      playSwordAttackClip();
     },
     gold: () => {
       playTone(880, 0.08, "triangle", 0.07);
@@ -246,11 +379,107 @@ function playSound(name) {
   patterns[name]?.();
 }
 
+function playMonsterDeathSound(level) {
+  if (!state.soundEnabled) return;
+
+  const sounds = {
+    1: () => {
+      playNoiseBurst(0.18, 0.045);
+      playSweep(360, 110, 0.2, "sine", 0.045);
+    },
+    2: () => {
+      playSweep(1400, 520, 0.16, "triangle", 0.05);
+      playTone(1900, 0.05, "sine", 0.04, 0.06);
+    },
+    3: () => {
+      playTone(520, 0.08, "square", 0.045);
+      playSweep(420, 160, 0.18, "sawtooth", 0.04, 0.06);
+    },
+    4: () => {
+      playSweep(520, 90, 0.28, "sawtooth", 0.055);
+      playNoiseBurst(0.16, 0.035, 0.08);
+    },
+    5: () => {
+      playSweep(820, 260, 0.24, "triangle", 0.05);
+      playTone(360, 0.1, "sawtooth", 0.04, 0.11);
+    },
+    6: () => {
+      playSweep(260, 70, 0.32, "sawtooth", 0.055);
+      playNoiseBurst(0.2, 0.03, 0.1);
+    },
+    7: () => {
+      playTone(160, 0.09, "square", 0.055);
+      playTone(240, 0.08, "square", 0.045, 0.08);
+      playNoiseBurst(0.18, 0.04, 0.12);
+    },
+    8: () => {
+      playTone(95, 0.16, "sine", 0.07);
+      playTone(140, 0.12, "triangle", 0.05, 0.09);
+      playNoiseBurst(0.24, 0.04, 0.14);
+    },
+    9: () => {
+      playSweep(650, 120, 0.28, "sawtooth", 0.065);
+      playTone(90, 0.16, "triangle", 0.04, 0.12);
+    },
+    10: () => {
+      playSweep(900, 80, 0.34, "sawtooth", 0.06);
+      playTone(1200, 0.06, "triangle", 0.035, 0.08);
+    },
+    11: () => {
+      playTone(130, 0.18, "square", 0.06);
+      playSweep(520, 180, 0.22, "triangle", 0.04, 0.08);
+    },
+    12: () => {
+      playSweep(740, 180, 0.24, "sawtooth", 0.055);
+      playTone(1568, 0.05, "sine", 0.035, 0.11);
+    },
+    13: () => {
+      playSweep(1100, 140, 0.36, "sine", 0.052);
+      playTone(220, 0.2, "triangle", 0.04, 0.12);
+    },
+    14: () => {
+      playTone(180, 0.1, "triangle", 0.05);
+      playTone(270, 0.1, "triangle", 0.045, 0.08);
+      playNoiseBurst(0.28, 0.045, 0.12);
+    },
+    15: () => {
+      playSweep(620, 95, 0.38, "sawtooth", 0.065);
+      playTone(72, 0.22, "sine", 0.05, 0.16);
+    },
+    16: () => {
+      playTone(85, 0.18, "square", 0.07);
+      playNoiseBurst(0.24, 0.05, 0.08);
+      playTone(170, 0.16, "triangle", 0.045, 0.18);
+    },
+    17: () => {
+      playSweep(520, 55, 0.46, "sawtooth", 0.075);
+      playTone(65, 0.3, "sine", 0.055, 0.2);
+    },
+    18: () => {
+      playTone(70, 0.18, "square", 0.075);
+      playSweep(360, 72, 0.42, "sawtooth", 0.06, 0.08);
+      playNoiseBurst(0.26, 0.04, 0.18);
+    },
+    19: () => {
+      playSweep(880, 75, 0.5, "triangle", 0.07);
+      playTone(1320, 0.08, "sine", 0.04, 0.12);
+      playTone(66, 0.32, "sine", 0.06, 0.22);
+    },
+    20: () => {
+      playTone(52, 0.34, "sine", 0.08);
+      playSweep(420, 45, 0.58, "sawtooth", 0.075, 0.05);
+      playNoiseBurst(0.36, 0.055, 0.18);
+    },
+  };
+
+  sounds[level]?.();
+}
+
 function ensureBgmGain() {
   const context = getAudioContext();
   if (!bgmGain) {
     bgmGain = context.createGain();
-    bgmGain.gain.setValueAtTime(0.12, context.currentTime);
+    bgmGain.gain.setValueAtTime(0.32, context.currentTime);
     bgmGain.connect(context.destination);
   }
   return bgmGain;
@@ -278,42 +507,46 @@ function playBgmTone(frequency, startDelay, duration, type = "triangle", volume 
 function getBgmProfile() {
   if (state.monsterLevel <= 10) {
     return {
-      masterVolume: 0.12,
-      step: 0.42,
-      leadType: "triangle",
+      masterVolume: 0.36,
+      step: 1.65,
+      leadType: "sine",
       bassType: "sine",
-      melody: [220, 277.18, 329.63, 392, 369.99, 329.63, 277.18, 246.94],
-      bass: [110, 110, 138.59, 138.59, 98, 98, 123.47, 123.47],
+      drone: 55,
+      chords: [
+        [110, 165, 220],
+        [98, 146.83, 196],
+        [87.31, 130.81, 174.61],
+        [98, 146.83, 220],
+      ],
       leadVolume: 0.08,
-      bassVolume: 0.058,
-      harmonyVolume: 0.038,
+      bassVolume: 0.17,
+      harmonyVolume: 0.12,
       pulseVolume: 0,
     };
   }
 
   const intensity = state.monsterLevel - 10;
   const root = BGM_ROOTS[intensity - 1] ?? 65.41;
-  const tension = 1 + intensity * 0.035;
+  const fifth = root * 1.5;
+  const octave = root * 2;
+  const minorThird = root * 1.2;
+  const lowRoot = root * 0.5;
   return {
-    masterVolume: Math.min(0.22, 0.125 + intensity * 0.0095),
-    step: Math.max(0.3, 0.42 - intensity * 0.012),
-    leadType: intensity >= 7 ? "sawtooth" : "triangle",
-    bassType: intensity >= 6 ? "sawtooth" : "sine",
-    melody: [
-      root * 2,
-      root * 2.25,
-      root * 2.4,
-      root * 3,
-      root * 3.2 * tension,
-      root * 3,
-      root * 2.4,
-      root * 2.25,
+    masterVolume: Math.min(0.5, 0.38 + intensity * 0.012),
+    step: Math.max(1.15, 1.65 - intensity * 0.035),
+    leadType: intensity >= 7 ? "triangle" : "sine",
+    bassType: intensity >= 6 ? "triangle" : "sine",
+    drone: lowRoot,
+    chords: [
+      [root, minorThird, fifth, octave],
+      [root * 0.89, root * 1.33, root * 1.78, root * 2.67],
+      [root * 0.75, root * 1.12, root * 1.5, root * 2.25],
+      [root * 0.84, root * 1.26, root * 1.68, root * 2.52],
     ],
-    bass: [root, root, root * 0.75, root * 0.75, root * 0.84, root * 0.84, root * 0.67, root * 0.67],
-    leadVolume: 0.075 + intensity * 0.006,
-    bassVolume: 0.06 + intensity * 0.007,
-    harmonyVolume: intensity >= 3 ? 0.032 + intensity * 0.003 : 0,
-    pulseVolume: intensity >= 6 ? 0.022 + intensity * 0.003 : 0,
+    leadVolume: 0.095 + intensity * 0.005,
+    bassVolume: 0.19 + intensity * 0.008,
+    harmonyVolume: 0.13 + intensity * 0.008,
+    pulseVolume: intensity >= 6 ? 0.045 + intensity * 0.004 : 0,
   };
 }
 
@@ -324,21 +557,23 @@ function playBgmLoop() {
   bgmGain.gain.cancelScheduledValues(audioContext.currentTime);
   bgmGain.gain.setValueAtTime(profile.masterVolume, audioContext.currentTime);
 
-  profile.melody.forEach((note, index) => {
+  const loopDuration = profile.step * profile.chords.length;
+  playBgmTone(profile.drone, 0, loopDuration * 0.96, "sine", profile.bassVolume * 0.75);
+  playBgmTone(profile.drone * 2, 0.08, loopDuration * 0.9, profile.bassType, profile.bassVolume * 0.45);
+
+  profile.chords.forEach((chord, index) => {
     const offset = index * profile.step;
-    playBgmTone(note, offset, profile.step * 0.72, profile.leadType, profile.leadVolume);
-    if (index % 2 === 0 && profile.harmonyVolume > 0) {
-      playBgmTone(note * 1.5, offset + profile.step * 0.28, profile.step * 0.45, "sine", profile.harmonyVolume);
-    }
+    chord.forEach((note, noteIndex) => {
+      const volume = noteIndex === 0 ? profile.bassVolume : profile.harmonyVolume / (noteIndex + 0.6);
+      playBgmTone(note, offset, profile.step * 1.22, noteIndex === 0 ? profile.bassType : profile.leadType, volume);
+    });
+    playBgmTone(chord[chord.length - 1] * 1.5, offset + profile.step * 0.46, profile.step * 0.55, "sine", profile.leadVolume);
     if (profile.pulseVolume > 0) {
-      playBgmTone(profile.bass[index] * 2, offset + profile.step * 0.5, profile.step * 0.18, "square", profile.pulseVolume);
+      playBgmTone(chord[0] * 0.5, offset + profile.step * 0.82, profile.step * 0.18, "triangle", profile.pulseVolume);
     }
-  });
-  profile.bass.forEach((note, index) => {
-    playBgmTone(note, index * profile.step, profile.step * 0.9, profile.bassType, profile.bassVolume);
   });
 
-  bgmTimer = window.setTimeout(playBgmLoop, profile.step * profile.melody.length * 1000);
+  bgmTimer = window.setTimeout(playBgmLoop, loopDuration * 1000);
 }
 
 async function startBgm() {
@@ -414,16 +649,17 @@ function formatPercent(value) {
 
 function getItemDropBaseChance(monsterLevel) {
   if (monsterLevel < 10) return 0;
-  return ((monsterLevel - 9) / (MAX_MONSTER_LEVEL - 9)) * 3 + 10;
+  return ((monsterLevel - 9) / (MAX_MONSTER_LEVEL - 9)) * 10;
 }
 
 function getItemDropChances(monsterLevel) {
   const baseChance = getItemDropBaseChance(monsterLevel);
+  const boost10Chance = monsterLevel < 10 ? 0 : ((monsterLevel - 9) / (MAX_MONSTER_LEVEL - 9)) * 1;
   return {
     protect: baseChance,
     fallProtect: baseChance,
     boost5: baseChance,
-    boost10: monsterLevel === 19 ? 10 : monsterLevel === 20 ? 15 : 0,
+    boost10: boost10Chance,
   };
 }
 
@@ -450,6 +686,10 @@ function normalizeSelectedItems(value = {}, legacySelectedItem = "") {
     selectedItems[legacySelectedItem] = Math.min(1, getItemSelectionLimit(legacySelectedItem));
   }
 
+  if (selectedItems.boost5 > 0 && selectedItems.boost10 > 0) {
+    selectedItems.boost10 = 0;
+  }
+
   return selectedItems;
 }
 
@@ -459,6 +699,36 @@ function getSelectedItemCount(itemKey) {
 
 function hasSelectedItems() {
   return ITEM_ORDER.some((itemKey) => getSelectedItemCount(itemKey) > 0);
+}
+
+function hasRawSelectedItems() {
+  return ITEM_ORDER.some((itemKey) => (state.selectedItems[itemKey] ?? 0) > 0);
+}
+
+function hasEnoughSelectedItemsForEnhance() {
+  return ITEM_ORDER.every((itemKey) => {
+    const selectedCount = state.selectedItems[itemKey] ?? 0;
+    return selectedCount <= 0 || state.inventory[itemKey] >= selectedCount;
+  });
+}
+
+function getSelectedItemPlan() {
+  return ITEM_ORDER.reduce((plan, itemKey) => {
+    const selectedCount = state.selectedItems[itemKey] ?? 0;
+    if (selectedCount > 0) plan[itemKey] = selectedCount;
+    return plan;
+  }, {});
+}
+
+function hasItemPlanItems(plan) {
+  return Boolean(plan) && Object.values(plan).some((count) => count > 0);
+}
+
+function hasEnoughItemsForPlan(plan) {
+  if (!hasItemPlanItems(plan)) return true;
+  return Object.entries(plan).every(([itemKey, selectedCount]) => {
+    return state.inventory[itemKey] >= selectedCount;
+  });
 }
 
 function getSelectedChanceBonus() {
@@ -487,7 +757,7 @@ function getSwordImagePath(level) {
 }
 
 function getMonsterImagePath(level) {
-  return `assets/monsters/stages-20-transparent/monster-stage-${String(level).padStart(2, "0")}.png`;
+  return `assets/monsters/stages-20-centered-transparent/monster-stage-${String(level).padStart(2, "0")}.png`;
 }
 
 function getMonsterMaxHp(level) {
@@ -573,6 +843,13 @@ function loadGame() {
     state.theme = parsed.theme === "light" ? "light" : "dark";
     state.inventory = normalizeInventory(parsed.inventory);
     state.selectedItems = normalizeSelectedItems(parsed.selectedItems, parsed.selectedItem);
+    state.runStartedAt = Number.isFinite(parsed.runStartedAt) ? parsed.runStartedAt : Date.now();
+    state.spentGold = Number.isFinite(parsed.spentGold) ? Math.max(0, parsed.spentGold) : 0;
+    state.enhanceAttempts = Number.isFinite(parsed.enhanceAttempts)
+      ? Math.max(0, Math.floor(parsed.enhanceAttempts))
+      : 0;
+    state.maxCompletionShown =
+      typeof parsed.maxCompletionShown === "boolean" ? parsed.maxCompletionShown : state.best >= MAX_LEVEL;
     state.balanceVersion = parsed.balanceVersion === BALANCE_VERSION ? BALANCE_VERSION : 0;
     state.monsterHp =
       state.balanceVersion === BALANCE_VERSION && Number.isFinite(parsed.monsterHp)
@@ -586,6 +863,62 @@ function loadGame() {
 
 function saveGame() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadRankings() {
+  try {
+    const rankings = JSON.parse(localStorage.getItem(RANKING_KEY) || "[]");
+    if (!Array.isArray(rankings)) return [];
+    return rankings
+      .filter((entry) => typeof entry.name === "string" && Number.isFinite(entry.time))
+      .slice(0, 50);
+  } catch {
+    localStorage.removeItem(RANKING_KEY);
+    return [];
+  }
+}
+
+function saveRankings(rankings) {
+  localStorage.setItem(RANKING_KEY, JSON.stringify(rankings.slice(0, 50)));
+}
+
+function sanitizeRankingName(value) {
+  return value.replace(/[^a-zA-Z]/g, "").slice(0, 10);
+}
+
+function formatRankingDate(timestamp) {
+  return new Date(timestamp).toLocaleDateString("ko-KR", {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}시간 ${minutes}분`;
+  if (minutes > 0) return `${minutes}분 ${seconds}초`;
+  return `${seconds}초`;
+}
+
+function getSortedRankings() {
+  const rankings = loadRankings();
+  const valueBySort = {
+    time: (entry) => entry.clearTimeMs ?? Number.MAX_SAFE_INTEGER,
+    gold: (entry) => entry.spentGold ?? Number.MAX_SAFE_INTEGER,
+    attempts: (entry) => entry.enhanceAttempts ?? Number.MAX_SAFE_INTEGER,
+  };
+  const getValue = valueBySort[activeRankingSort] ?? valueBySort.time;
+  return rankings.sort((a, b) => {
+    const primary = getValue(a) - getValue(b);
+    if (primary !== 0) return primary;
+    const timeDiff = (a.clearTimeMs ?? 0) - (b.clearTimeMs ?? 0);
+    if (timeDiff !== 0) return timeDiff;
+    return a.time - b.time;
+  });
 }
 
 function formatGold(value) {
@@ -634,6 +967,128 @@ function addLog(text, type = "") {
   while (elements.log.children.length > 9) {
     elements.log.lastElementChild.remove();
   }
+}
+
+function renderRankingList() {
+  const rankings = getSortedRankings();
+  elements.rankingTabs.querySelectorAll("[data-ranking-sort]").forEach((button) => {
+    button.classList.toggle("selected", button.dataset.rankingSort === activeRankingSort);
+  });
+
+  if (!rankings.length) {
+    elements.rankingList.innerHTML = `<div class="ranking-empty">아직 등록된 랭킹이 없습니다.</div>`;
+    return;
+  }
+
+  elements.rankingList.innerHTML = rankings.map((entry, index) => `
+    <div class="ranking-row">
+      <strong>${index + 1}</strong>
+      <div>
+        <span>${entry.name}</span>
+        <div class="ranking-meta">
+          <em>시간 ${Number.isFinite(entry.clearTimeMs) ? formatDuration(entry.clearTimeMs) : "-"}</em>
+          <em>골드 ${Number.isFinite(entry.spentGold) ? formatGold(entry.spentGold) : "-"}</em>
+          <em>시도 ${Number.isFinite(entry.enhanceAttempts) ? `${Number(entry.enhanceAttempts).toLocaleString("ko-KR")}회` : "-"}</em>
+          <em>${formatRankingDate(entry.time)}</em>
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function openRankingModal() {
+  renderRankingList();
+  elements.rankingModal.classList.remove("hidden");
+}
+
+function closeRankingModal() {
+  elements.rankingModal.classList.add("hidden");
+}
+
+function openCoffeeModal() {
+  elements.coffeeHint.textContent = COFFEE_PAYMENT_URL
+    ? "결제하기를 누르면 결제 페이지가 열립니다."
+    : "결제 링크가 아직 설정되지 않았습니다. script.js의 COFFEE_PAYMENT_URL에 결제 주소를 넣어주세요.";
+  elements.coffeeModal.classList.remove("hidden");
+}
+
+function closeCoffeeModal() {
+  elements.coffeeModal.classList.add("hidden");
+}
+
+function openCoffeePayment() {
+  if (!COFFEE_PAYMENT_URL) {
+    elements.coffeeHint.textContent = "결제 링크가 아직 설정되지 않았습니다. script.js의 COFFEE_PAYMENT_URL에 결제 주소를 넣어주세요.";
+    return;
+  }
+  window.open(COFFEE_PAYMENT_URL, "_blank", "noopener,noreferrer");
+}
+
+function closeCompletionModal() {
+  elements.completionModal.classList.add("hidden");
+}
+
+function showFireworks() {
+  const colors = ["#f6c85f", "#77a7ff", "#70e08b", "#ff6b6b", "#ffffff"];
+  elements.fireworksLayer.innerHTML = "";
+  elements.fireworksLayer.classList.remove("hidden");
+
+  for (let burst = 0; burst < 7; burst += 1) {
+    const x = 15 + Math.random() * 70;
+    const y = 14 + Math.random() * 44;
+    for (let spark = 0; spark < 18; spark += 1) {
+      const particle = document.createElement("span");
+      const angle = (Math.PI * 2 * spark) / 18;
+      const distance = 2.4 + Math.random() * 3.6;
+      particle.style.left = `${x}vw`;
+      particle.style.top = `${y}vh`;
+      particle.style.background = colors[(burst + spark) % colors.length];
+      particle.style.color = colors[(burst + spark) % colors.length];
+      particle.style.setProperty("--spark-x", `${Math.cos(angle) * distance}rem`);
+      particle.style.setProperty("--spark-y", `${Math.sin(angle) * distance}rem`);
+      particle.style.animationDelay = `${burst * 140}ms`;
+      elements.fireworksLayer.append(particle);
+    }
+  }
+
+  window.setTimeout(() => {
+    elements.fireworksLayer.classList.add("hidden");
+    elements.fireworksLayer.innerHTML = "";
+  }, 2200);
+}
+
+function showCompletionModal() {
+  stopAutoEnhance();
+  showFireworks();
+  elements.rankingNameInput.value = "";
+  elements.rankingNameHint.textContent = "영어만 최대 10글자까지 입력할 수 있습니다.";
+  elements.completionModal.classList.remove("hidden");
+  window.setTimeout(() => elements.rankingNameInput.focus(), 50);
+}
+
+function registerRanking() {
+  const name = sanitizeRankingName(elements.rankingNameInput.value);
+  elements.rankingNameInput.value = name;
+
+  if (!name) {
+    elements.rankingNameHint.textContent = "영어 이름을 입력하세요.";
+    return;
+  }
+
+  const rankings = loadRankings();
+  rankings.push({
+    name,
+    level: MAX_LEVEL,
+    gold: state.gold,
+    clearTimeMs: Date.now() - state.runStartedAt,
+    spentGold: state.spentGold,
+    enhanceAttempts: state.enhanceAttempts,
+    time: Date.now(),
+  });
+  saveRankings(rankings);
+  elements.rankingNameHint.textContent = `${name} 랭킹 등록 완료`;
+  closeCompletionModal();
+  openRankingModal();
 }
 
 function renderProbabilityTable() {
@@ -719,12 +1174,41 @@ function renderDropRateTable() {
   `;
 }
 
+function renderShop() {
+  const rows = SHOP_ITEMS.map(({ itemKey, price }) => {
+    const item = ITEMS[itemKey];
+    const buttons = [1, 10, 100].map((quantity) => {
+      const totalPrice = price * quantity;
+      const disabled = state.gold < totalPrice ? " disabled" : "";
+      return `<button class="shop-buy" type="button" data-shop-item="${itemKey}" data-shop-quantity="${quantity}"${disabled}>${quantity}개</button>`;
+    }).join("");
+
+    return `
+      <div class="shop-item">
+        <strong>${item.name}</strong>
+        <span class="shop-price">1개 ${formatGold(price)}</span>
+        <div class="shop-price-list">
+          <span>10개 ${formatGold(price * 10)}</span>
+          <span>100개 ${formatGold(price * 100)}</span>
+        </div>
+        <div class="shop-buy-row">${buttons}</div>
+      </div>
+    `;
+  }).join("");
+
+  elements.shopItems.innerHTML = `
+    <div class="shop-wallet">가지고 있는 돈 ${formatGold(state.gold)}</div>
+    ${rows}
+  `;
+}
+
 function render() {
   ensureMonsterHp();
   applyTheme();
 
   const cost = getCost(state.level);
-  const chance = Math.min(100, getChance(state.level) + getSelectedChanceBonus());
+  const selectedChanceBonus = state.level >= 29 ? 0 : getSelectedChanceBonus();
+  const chance = Math.min(100, getChance(state.level) + selectedChanceBonus);
   const progress = Math.round((state.level / MAX_LEVEL) * 100);
   const isMax = state.level >= MAX_LEVEL;
   const monsterMaxHp = getMonsterMaxHp(state.monsterLevel);
@@ -752,7 +1236,11 @@ function render() {
   elements.enhanceTargetReadout.textContent = `+${state.enhanceTarget}`;
   elements.enhanceTargetPrevButton.disabled = state.enhanceTarget <= 1;
   elements.enhanceTargetNextButton.disabled = state.enhanceTarget >= MAX_LEVEL;
-  elements.autoEnhanceButton.textContent = autoEnhanceTimer ? "자동 중지" : "자동 강화";
+  elements.enhanceSettings.classList.toggle("hidden", !enhanceSettingsOpen);
+  elements.autoEnhanceButton.textContent = enhanceSettingsOpen ? "설정 닫기" : "자동 강화";
+  elements.autoEnhanceStartButton.textContent = autoEnhanceTimer ? "자동 중지" : "자동 시작";
+  elements.shopBlock.classList.toggle("hidden", !shopOpen);
+  elements.shopToggleButton.textContent = shopOpen ? "🏠 상점 닫기" : "🏠 상점";
   elements.soundToggleButton.textContent = state.soundEnabled ? "사운드 ON" : "사운드 OFF";
   elements.bgmToggleButton.textContent = state.bgmEnabled ? "BGM ON" : "BGM OFF";
   elements.themeToggleButton.textContent = state.theme === "light" ? "다크 모드" : "화이트 모드";
@@ -776,6 +1264,7 @@ function render() {
   renderProbabilityTable();
   renderInventory();
   renderDropRateTable();
+  renderShop();
 }
 
 function showBattle() {
@@ -839,7 +1328,8 @@ function defeatMonster() {
   const earned = getMonsterReward(defeatedLevel);
   const drops = rollItemDrops(defeatedLevel);
   state.gold += earned;
-  playSound("gold");
+  playMonsterDeathSound(defeatedLevel);
+  window.setTimeout(() => playSound("gold"), 180);
   playCoinDrop(earned);
 
   if (defeatedLevel < MAX_MONSTER_LEVEL) {
@@ -849,8 +1339,10 @@ function defeatMonster() {
   state.monsterHp = getMonsterMaxHp(state.monsterLevel);
   restartBattleTimer();
   if (drops.length) {
+    stopAutoEnhance();
     playSound("item");
     playItemDrop(drops[0]);
+    setMessage("아이템이 드랍되어 자동 강화를 중지했습니다.");
   }
   const dropNames = drops.map((itemKey) => ITEMS[itemKey].name);
   const dropText = dropNames.length ? ` 아이템: ${dropNames.join(", ")} 획득.` : "";
@@ -991,6 +1483,21 @@ function stopAutoEnhance() {
   if (!autoEnhanceTimer) return;
   window.clearInterval(autoEnhanceTimer);
   autoEnhanceTimer = null;
+  autoEnhanceItemPlan = null;
+  render();
+}
+
+function toggleEnhanceSettings() {
+  if (enhanceSettingsOpen && autoEnhanceTimer) {
+    stopAutoEnhance();
+    setMessage("자동 강화를 중지했습니다.");
+  }
+  enhanceSettingsOpen = !enhanceSettingsOpen;
+  render();
+}
+
+function toggleShop() {
+  shopOpen = !shopOpen;
   render();
 }
 
@@ -1010,7 +1517,13 @@ function runAutoEnhanceStep() {
     return;
   }
 
-  enhance();
+  if (!hasEnoughItemsForPlan(autoEnhanceItemPlan)) {
+    stopAutoEnhance();
+    setMessage("처음 선택한 아이템 중 부족한 아이템이 있어 자동 강화를 중지했습니다.");
+    return;
+  }
+
+  enhance(autoEnhanceItemPlan);
 }
 
 function toggleAutoEnhance() {
@@ -1020,10 +1533,18 @@ function toggleAutoEnhance() {
     return;
   }
 
+  enhanceSettingsOpen = true;
   const targetLevel = state.enhanceTarget;
 
   if (state.level >= targetLevel) {
     setMessage(`이미 목표 +${targetLevel} 이상입니다.`);
+    return;
+  }
+
+  autoEnhanceItemPlan = getSelectedItemPlan();
+  if (!hasEnoughItemsForPlan(autoEnhanceItemPlan)) {
+    autoEnhanceItemPlan = null;
+    setMessage("처음 선택한 아이템 중 부족한 아이템이 있어 자동 강화를 시작할 수 없습니다.");
     return;
   }
 
@@ -1043,10 +1564,32 @@ function selectInventoryItem(itemKey) {
   if (!itemKey) {
     state.selectedItems = normalizeSelectedItems();
   } else if (ITEMS[itemKey] && state.inventory[itemKey] > 0) {
+    if (state.level >= 29 && (itemKey === "boost5" || itemKey === "boost10")) {
+      setMessage("+29에서 +30 강화에는 확률 증가권을 사용할 수 없습니다.");
+      return;
+    }
+    if (itemKey === "boost5") state.selectedItems.boost10 = 0;
+    if (itemKey === "boost10") state.selectedItems.boost5 = 0;
     const currentCount = getSelectedItemCount(itemKey);
     const limit = getItemSelectionLimit(itemKey);
     state.selectedItems[itemKey] = currentCount >= limit ? 0 : currentCount + 1;
   }
+  saveGame();
+  render();
+}
+
+function buyShopItem(itemKey, quantity = 1) {
+  const shopItem = SHOP_ITEMS.find((item) => item.itemKey === itemKey);
+  const amount = Math.max(1, Math.floor(quantity));
+  const totalPrice = shopItem ? shopItem.price * amount : 0;
+  if (!shopItem || state.gold < totalPrice) return;
+
+  state.gold -= totalPrice;
+  state.spentGold += totalPrice;
+  state.inventory[itemKey] += amount;
+  playSound("item");
+  setMessage(`${ITEMS[itemKey].name} ${amount}개를 구매했습니다.`, "success");
+  addLog(`상점 구매: ${ITEMS[itemKey].name} ${amount}개 (${formatGold(totalPrice)})`, "success");
   saveGame();
   render();
 }
@@ -1140,14 +1683,28 @@ function handleFailure(protectActive = false, fallProtectActive = false) {
   addLog(`+${before} 강화 실패: 단계 유지${itemText}`, "fail");
 }
 
-function enhance() {
+function enhance(itemPlan = null) {
   const cost = getCost(state.level);
   if (state.level >= MAX_LEVEL || state.gold < cost) return;
 
-  const selectedItems = normalizeSelectedItems(state.selectedItems);
-  state.selectedItems = selectedItems;
-  const selectedItemNames = getSelectedItemNames();
-  const chanceBonus = getSelectedChanceBonus();
+  const plannedItems = itemPlan && ITEM_ORDER.some((itemKey) => Number.isFinite(itemPlan[itemKey]))
+    ? itemPlan
+    : null;
+  const selectedItems = plannedItems ? normalizeSelectedItems(plannedItems) : normalizeSelectedItems(state.selectedItems);
+  if (state.level >= 29) {
+    selectedItems.boost5 = 0;
+    selectedItems.boost10 = 0;
+  }
+  if (!plannedItems) state.selectedItems = selectedItems;
+  const selectedItemNames = ITEM_ORDER.flatMap((itemKey) => {
+    const count = selectedItems[itemKey] ?? 0;
+    if (count <= 0) return [];
+    const suffix = count > 1 ? ` ${count}개` : "";
+    return `${ITEMS[itemKey].name}${suffix}`;
+  });
+  const chanceBonus = ITEM_ORDER.reduce((bonus, itemKey) => {
+    return bonus + (selectedItems[itemKey] ?? 0) * ITEMS[itemKey].chanceBonus;
+  }, 0);
   const protectActive = selectedItems.protect > 0;
   const fallProtectActive = selectedItems.fallProtect > 0;
 
@@ -1155,10 +1712,14 @@ function enhance() {
     const selectedCount = selectedItems[itemKey] ?? 0;
     if (selectedCount <= 0) return;
     state.inventory[itemKey] = Math.max(0, state.inventory[itemKey] - selectedCount);
-    state.selectedItems[itemKey] = 0;
+  });
+  const depletedSelectedItems = ITEM_ORDER.some((itemKey) => {
+    return (selectedItems[itemKey] ?? 0) > 0 && state.inventory[itemKey] <= 0;
   });
 
   state.gold -= cost;
+  state.spentGold += cost;
+  state.enhanceAttempts += 1;
   state.destroyed = false;
   playSound("enhance");
   const before = state.level;
@@ -1173,6 +1734,10 @@ function enhance() {
     setMessage(`강화 성공! +${before}에서 +${state.level}이 되었습니다.${maxText}`, "success");
     const itemText = selectedItemNames.length ? ` (${selectedItemNames.join(", ")} 사용)` : "";
     addLog(`+${before} -> +${state.level} 성공${itemText}`, "success");
+    if (state.level >= MAX_LEVEL && !state.maxCompletionShown) {
+      state.maxCompletionShown = true;
+      window.setTimeout(showCompletionModal, 120);
+    }
   } else {
     if (selectedItemNames.length && !protectActive && !fallProtectActive) {
       addLog(`${selectedItemNames.join(", ")} 사용`, "fail");
@@ -1182,6 +1747,7 @@ function enhance() {
 
   saveGame();
   render();
+  if (depletedSelectedItems) showItemDepletedBanner();
 }
 
 function showDestroyedBanner() {
@@ -1189,6 +1755,13 @@ function showDestroyedBanner() {
   void elements.destroyedBanner.offsetWidth;
   elements.destroyedBanner.classList.add("show");
   window.setTimeout(() => elements.destroyedBanner.classList.remove("show"), 1200);
+}
+
+function showItemDepletedBanner() {
+  elements.itemDepletedBanner.classList.remove("show");
+  void elements.itemDepletedBanner.offsetWidth;
+  elements.itemDepletedBanner.classList.add("show");
+  window.setTimeout(() => elements.itemDepletedBanner.classList.remove("show"), 1500);
 }
 
 function resetGame() {
@@ -1202,6 +1775,12 @@ function resetGame() {
   state.unlockedMonsterLevel = 1;
   state.monsterHp = getMonsterMaxHp(1);
   state.enhanceTarget = 10;
+  state.maxCompletionShown = false;
+  state.runStartedAt = Date.now();
+  state.spentGold = 0;
+  state.enhanceAttempts = 0;
+  enhanceSettingsOpen = false;
+  shopOpen = false;
   state.balanceVersion = BALANCE_VERSION;
   state.inventory = normalizeInventory();
   state.selectedItems = normalizeSelectedItems();
@@ -1213,13 +1792,17 @@ function resetGame() {
 }
 
 elements.enhanceButton.addEventListener("click", enhance);
-elements.autoEnhanceButton.addEventListener("click", toggleAutoEnhance);
+elements.shopToggleButton.addEventListener("click", toggleShop);
+elements.autoEnhanceButton.addEventListener("click", toggleEnhanceSettings);
+elements.autoEnhanceStartButton.addEventListener("click", toggleAutoEnhance);
 elements.enhanceTargetPrevButton.addEventListener("click", () => changeEnhanceTarget(-1));
 elements.enhanceTargetNextButton.addEventListener("click", () => changeEnhanceTarget(1));
 elements.soundToggleButton.addEventListener("click", toggleSound);
 elements.bgmToggleButton.addEventListener("click", toggleBgm);
+elements.rankingToggleButton.addEventListener("click", openRankingModal);
 elements.themeToggleButton.addEventListener("click", toggleTheme);
 elements.workButton.addEventListener("click", showBattle);
+elements.topWorkButton.addEventListener("click", showBattle);
 elements.resetButton.addEventListener("click", resetGame);
 elements.backButton.addEventListener("click", showUpgrade);
 elements.stayButton.addEventListener("click", showUpgrade);
@@ -1237,6 +1820,34 @@ elements.battleInventoryItems.addEventListener("click", (event) => {
   const button = event.target.closest("[data-item]");
   if (!button) return;
   selectInventoryItem(button.dataset.item);
+});
+elements.shopItems.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-shop-item]");
+  if (!button) return;
+  buyShopItem(button.dataset.shopItem, Number(button.dataset.shopQuantity));
+});
+elements.rankingNameInput.addEventListener("input", () => {
+  elements.rankingNameInput.value = sanitizeRankingName(elements.rankingNameInput.value);
+});
+elements.rankingRegisterButton.addEventListener("click", registerRanking);
+elements.completionDoneButton.addEventListener("click", closeCompletionModal);
+elements.rankingCloseButton.addEventListener("click", closeRankingModal);
+elements.coffeeCloseButton.addEventListener("click", closeCoffeeModal);
+elements.coffeePayButton.addEventListener("click", openCoffeePayment);
+document.querySelectorAll("[data-coffee-button]").forEach((button) => {
+  button.addEventListener("click", openCoffeeModal);
+});
+elements.rankingTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-ranking-sort]");
+  if (!button || !RANKING_SORTS.includes(button.dataset.rankingSort)) return;
+  activeRankingSort = button.dataset.rankingSort;
+  renderRankingList();
+});
+elements.rankingModal.addEventListener("click", (event) => {
+  if (event.target === elements.rankingModal) closeRankingModal();
+});
+elements.coffeeModal.addEventListener("click", (event) => {
+  if (event.target === elements.coffeeModal) closeCoffeeModal();
 });
 
 loadGame();
