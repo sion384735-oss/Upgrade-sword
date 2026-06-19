@@ -38,7 +38,7 @@ const FIREBASE_CONFIG = {
   measurementId: "G-EM9ZZECBX2",
 };
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
-const COFFEE_PAYMENT_URL = "";
+const COFFEE_PAYMENT_URL = "https://buymeacoffee.com/swordupgrade";
 const SUCCESS_CHANCES = [
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
   50, 45, 40, 35, 30, 25, 20, 16, 13, 10,
@@ -813,7 +813,7 @@ function getMonsterReward(level) {
 function getDamageRange() {
   const level = state.level;
   const targetMonster = getRecommendedMonsterLevel(level);
-  if (targetMonster === 0) return { min: 3, max: 5 };
+  if (targetMonster === 0) return { min: 26, max: 34 };
 
   const targetHp = getMonsterMaxHp(targetMonster);
   const levelBonus = Math.max(0, level - getMinimumSwordLevelForMonster(targetMonster));
@@ -1109,6 +1109,7 @@ function closeRankingModal() {
 }
 
 function openCoffeeModal() {
+  elements.coffeePayButton.href = COFFEE_PAYMENT_URL;
   elements.coffeeHint.textContent = COFFEE_PAYMENT_URL
     ? "결제하기를 누르면 결제 페이지가 열립니다."
     : "결제 링크가 아직 설정되지 않았습니다. script.js의 COFFEE_PAYMENT_URL에 결제 주소를 넣어주세요.";
@@ -1117,14 +1118,6 @@ function openCoffeeModal() {
 
 function closeCoffeeModal() {
   elements.coffeeModal.classList.add("hidden");
-}
-
-function openCoffeePayment() {
-  if (!COFFEE_PAYMENT_URL) {
-    elements.coffeeHint.textContent = "결제 링크가 아직 설정되지 않았습니다. script.js의 COFFEE_PAYMENT_URL에 결제 주소를 넣어주세요.";
-    return;
-  }
-  window.open(COFFEE_PAYMENT_URL, "_blank", "noopener,noreferrer");
 }
 
 function closeCompletionModal() {
@@ -1957,7 +1950,6 @@ elements.rankingRegisterButton.addEventListener("click", registerRanking);
 elements.completionDoneButton.addEventListener("click", closeCompletionModal);
 elements.rankingCloseButton.addEventListener("click", closeRankingModal);
 elements.coffeeCloseButton.addEventListener("click", closeCoffeeModal);
-elements.coffeePayButton.addEventListener("click", openCoffeePayment);
 document.querySelectorAll("[data-coffee-button]").forEach((button) => {
   button.addEventListener("click", openCoffeeModal);
 });
