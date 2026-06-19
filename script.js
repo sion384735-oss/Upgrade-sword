@@ -21,6 +21,8 @@ const SWORD_ATTACK_SOUND_PATH = "assets/sounds/sword-attack.mp4";
 const SFX_VOLUME = 0.25;
 const BALANCE_VERSION = 3;
 const STORAGE_KEY = "sword-upgrade-save";
+const SAVE_MIGRATION_KEY = "sword-upgrade-save-signature-enabled";
+const SAVE_SIGNATURE_SALT = "sword-upgrade-local-save-v4";
 const RANKING_KEY = "sword-upgrade-rankings";
 const RANKING_SORTS = ["time", "gold", "attempts"];
 const RANKING_SORT_FIELDS = {
@@ -39,11 +41,13 @@ const FIREBASE_CONFIG = {
 };
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
 const COFFEE_PAYMENT_URL = "https://qr.kakaopay.com/FJUnB2V9U3e807610";
-const SUCCESS_CHANCES = [
+const SUCCESS_CHANCES = Object.freeze([
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
   50, 45, 40, 35, 30, 25, 20, 16, 13, 10,
-  9, 8, 7, 6, 5, 4, 3, 2.1, 1.1, 0.1,
-];
+  9, 8, 7, 6, 5, 4, 3, 2.1, 1.1, 0.9,
+]);
+const ITEM_DROP_CHANCE_BONUS = 3;
+const BOOSTED_DROP_ITEMS = ["protect", "fallProtect", "boost5"];
 const ITEM_ORDER = ["protect", "fallProtect", "boost5", "boost10"];
 const DROP_ITEM_ORDER = ["protect", "fallProtect", "boost5", "boost10"];
 const SHOP_ITEMS = [
@@ -357,7 +361,7 @@ function playSyntheticSwordHit() {
   playTone(988, 0.09, "triangle", 0.022, 0.17);
 }
 
-function playSwordAttackClip() {
+function ensureAttackSounds() {
   if (!attackSounds.length) {
     attackSounds = Array.from({ length: 4 }, () => {
       const audio = new Audio(SWORD_ATTACK_SOUND_PATH);
@@ -366,7 +370,19 @@ function playSwordAttackClip() {
       return audio;
     });
   }
+  return attackSounds;
+}
 
+function prepareSwordAttackSound() {
+  if (!state.soundEnabled) return;
+  ensureAttackSounds().forEach((audio) => {
+    if (audio.readyState === 0) audio.load();
+  });
+  if (audioContext?.state === "suspended") audioContext.resume();
+}
+
+function playSwordAttackClip() {
+  ensureAttackSounds();
   const audio = attackSounds[attackSoundIndex];
   attackSoundIndex = (attackSoundIndex + 1) % attackSounds.length;
   audio.pause();
@@ -696,13 +712,12 @@ function getItemDropBaseChance(monsterLevel) {
 
 function getItemDropChances(monsterLevel) {
   const baseChance = getItemDropBaseChance(monsterLevel);
+  const boostedChance = monsterLevel < 10 ? 0 : baseChance + ITEM_DROP_CHANCE_BONUS;
   const boost10Chance = monsterLevel < 10 ? 0 : ((monsterLevel - 9) / (MAX_MONSTER_LEVEL - 9)) * 1;
-  return {
-    protect: baseChance,
-    fallProtect: baseChance,
-    boost5: baseChance,
-    boost10: boost10Chance,
-  };
+  return DROP_ITEM_ORDER.reduce((chances, itemKey) => {
+    chances[itemKey] = BOOSTED_DROP_ITEMS.includes(itemKey) ? boostedChance : boost10Chance;
+    return chances;
+  }, {});
 }
 
 function normalizeInventory(value = {}) {
@@ -795,7 +810,7 @@ function getSwordTitle(level) {
 
 function getSwordImagePath(level) {
   const imageLevel = Math.max(1, Math.min(MAX_LEVEL, level));
-  return `assets/swords/stages-30-progressive-transparent/sword-stage-${String(imageLevel).padStart(2, "0")}.png`;
+  return `assets/swords/stages-30-clean-transparent/sword-stage-${String(imageLevel).padStart(2, "0")}.png`;
 }
 
 function getMonsterImagePath(level) {
@@ -854,13 +869,76 @@ function ensureMonsterHp() {
   }
 }
 
+function getSaveData() {
+  return {
+    gold: state.gold,
+    level: state.level,
+    best: state.best,
+    destroyed: state.destroyed,
+    monsterLevel: state.monsterLevel,
+    unlockedMonsterLevel: state.unlockedMonsterLevel,
+    monsterHp: state.monsterHp,
+    enhanceTarget: state.enhanceTarget,
+    soundEnabled: state.soundEnabled,
+    bgmEnabled: state.bgmEnabled,
+    theme: state.theme,
+    balanceVersion: state.balanceVersion,
+    inventory: state.inventory,
+    selectedItems: state.selectedItems,
+    runStartedAt: state.runStartedAt,
+    spentGold: state.spentGold,
+    enhanceAttempts: state.enhanceAttempts,
+    maxCompletionShown: state.maxCompletionShown,
+  };
+}
+
+function createSaveSignature(payload) {
+  const text = `${SAVE_SIGNATURE_SALT}:${payload}`;
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function createSignedSaveData() {
+  const payload = JSON.stringify(getSaveData());
+  return {
+    data: payload,
+    signature: createSaveSignature(payload),
+  };
+}
+
+function readSignedSaveData(saved) {
+  const parsed = JSON.parse(saved);
+  if (typeof parsed?.data === "string" && typeof parsed?.signature === "string") {
+    if (parsed.signature !== createSaveSignature(parsed.data)) return null;
+    return JSON.parse(parsed.data);
+  }
+
+  if (localStorage.getItem(SAVE_MIGRATION_KEY)) return null;
+  return parsed;
+}
+
+function removeTamperedSave() {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.setItem(SAVE_MIGRATION_KEY, "1");
+}
+
 function loadGame() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return;
 
   try {
-    const parsed = JSON.parse(saved);
-    state.gold = Number.isFinite(parsed.gold) ? parsed.gold : state.gold;
+    const parsed = readSignedSaveData(saved);
+    if (!parsed) {
+      removeTamperedSave();
+      return;
+    }
+    state.gold = Number.isFinite(parsed.gold)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parsed.gold)))
+      : state.gold;
     state.level = Number.isFinite(parsed.level)
       ? Math.min(MAX_LEVEL, Math.max(0, Math.round(parsed.level)))
       : state.level;
@@ -885,8 +963,12 @@ function loadGame() {
     state.theme = parsed.theme === "light" ? "light" : "dark";
     state.inventory = normalizeInventory(parsed.inventory);
     state.selectedItems = normalizeSelectedItems(parsed.selectedItems, parsed.selectedItem);
-    state.runStartedAt = Number.isFinite(parsed.runStartedAt) ? parsed.runStartedAt : Date.now();
-    state.spentGold = Number.isFinite(parsed.spentGold) ? Math.max(0, parsed.spentGold) : 0;
+    state.runStartedAt = Number.isFinite(parsed.runStartedAt)
+      ? Math.min(Date.now(), Math.max(0, parsed.runStartedAt))
+      : Date.now();
+    state.spentGold = Number.isFinite(parsed.spentGold)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parsed.spentGold)))
+      : 0;
     state.enhanceAttempts = Number.isFinite(parsed.enhanceAttempts)
       ? Math.max(0, Math.floor(parsed.enhanceAttempts))
       : 0;
@@ -898,13 +980,15 @@ function loadGame() {
         ? parsed.monsterHp
         : 0;
     state.balanceVersion = BALANCE_VERSION;
+    saveGame();
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    removeTamperedSave();
   }
 }
 
 function saveGame() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(createSignedSaveData()));
+  localStorage.setItem(SAVE_MIGRATION_KEY, "1");
 }
 
 function loadRankings() {
@@ -1923,6 +2007,7 @@ elements.topWorkButton.addEventListener("click", showBattle);
 elements.resetButton.addEventListener("click", resetGame);
 elements.backButton.addEventListener("click", showUpgrade);
 elements.stayButton.addEventListener("click", showUpgrade);
+elements.attackButton.addEventListener("pointerdown", prepareSwordAttackSound);
 elements.attackButton.addEventListener("click", attackMonster);
 elements.autoAttackButton.addEventListener("click", toggleAutoAttack);
 elements.monsterPrevButton.addEventListener("click", () => changeMonsterStage(-1));
