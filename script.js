@@ -3,13 +3,25 @@ import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.g
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   getFirestore,
   limit,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
 const MAX_LEVEL = 30;
 const MAX_MONSTER_LEVEL = 20;
@@ -18,7 +30,13 @@ const ATTACK_INTERVAL_MS = 450;
 const ATTACK_SOUND_DURATION_MS = 260;
 const ATTACK_SOUND_START_SECONDS = 2;
 const SWORD_ATTACK_SOUND_PATH = "assets/sounds/sword-attack.mp4";
+const FIREWORKS_SOUND_PATH = "Asmr 폭죽소리 효과음.mp4";
+const FIREWORKS_SOUND_VOLUME = 0.72;
+const FIREWORKS_SOUND_START_SECONDS = 0.55;
 const SFX_VOLUME = 0.25;
+const PLATINUM_VALUE = 1000000;
+const MIN_GAMBLE_BET = PLATINUM_VALUE;
+const GAMBLE_TYPES = ["oddEven", "ladder"];
 const BALANCE_VERSION = 3;
 const STORAGE_KEY = "sword-upgrade-save";
 const SAVE_MIGRATION_KEY = "sword-upgrade-save-signature-enabled";
@@ -40,6 +58,7 @@ const FIREBASE_CONFIG = {
   measurementId: "G-EM9ZZECBX2",
 };
 const FIRESTORE_RANKINGS_COLLECTION = "rankings";
+const FIRESTORE_SAVES_COLLECTION = "userSaves";
 const COFFEE_PAYMENT_URL = "https://qr.kakaopay.com/FJUnB2V9U3e807610";
 const SUCCESS_CHANCES = Object.freeze([
   100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
@@ -122,15 +141,35 @@ let enhanceSettingsOpen = false;
 let shopOpen = false;
 let attackSoundIndex = 0;
 let attackSounds = [];
+let fireworksSoundIndex = 0;
+let fireworksSounds = [];
+let fireworksAudioBuffer = null;
+let fireworksAudioBufferPromise = null;
+let fireworksAudioSources = [];
 let activeRankingSort = "time";
 let rankingRenderToken = 0;
 let firebaseDb = null;
+let firebaseAuth = null;
+let googleAuthProvider = null;
+let currentUser = null;
+let cloudSaveTimer = null;
+let cloudSaveLoading = false;
+let authPromptDismissed = false;
+let authPromptShown = false;
+let activeGambleType = "oddEven";
+let gambleInProgress = false;
+let rankingAutoRegisterTimer = null;
+let rankingRegistering = false;
+let completionCelebrationTimer = null;
 
 const BGM_ROOTS = [110, 103.83, 98, 92.5, 87.31, 82.41, 77.78, 73.42, 69.3, 65.41];
 
 try {
   const firebaseApp = initializeApp(FIREBASE_CONFIG);
   firebaseDb = getFirestore(firebaseApp);
+  firebaseAuth = getAuth(firebaseApp);
+  googleAuthProvider = new GoogleAuthProvider();
+  googleAuthProvider.setCustomParameters({ prompt: "select_account" });
   isAnalyticsSupported()
     .then((supported) => {
       if (supported) getAnalytics(firebaseApp);
@@ -157,10 +196,36 @@ const elements = {
   rankingCloseButton: document.querySelector("#rankingCloseButton"),
   rankingTabs: document.querySelector(".ranking-tabs"),
   rankingToggleButton: document.querySelector("#rankingToggleButton"),
+  authModal: document.querySelector("#authModal"),
+  authToggleButton: document.querySelector("#authToggleButton"),
+  authCloseButton: document.querySelector("#authCloseButton"),
+  authEmailInput: document.querySelector("#authEmailInput"),
+  authPasswordInput: document.querySelector("#authPasswordInput"),
+  authGoogleButton: document.querySelector("#authGoogleButton"),
+  authLoginButton: document.querySelector("#authLoginButton"),
+  authSignupButton: document.querySelector("#authSignupButton"),
+  authLogoutButton: document.querySelector("#authLogoutButton"),
+  authHint: document.querySelector("#authHint"),
+  authStatus: document.querySelector("#authStatus"),
   coffeeModal: document.querySelector("#coffeeModal"),
   coffeeCloseButton: document.querySelector("#coffeeCloseButton"),
   coffeePayButton: document.querySelector("#coffeePayButton"),
   coffeeHint: document.querySelector("#coffeeHint"),
+  gambleModal: document.querySelector("#gambleModal"),
+  gambleCloseButton: document.querySelector("#gambleCloseButton"),
+  gambleToggleButton: document.querySelector("#gambleToggleButton"),
+  gambleWallet: document.querySelector("#gambleWallet"),
+  gambleBetInput: document.querySelector("#gambleBetInput"),
+  gambleHint: document.querySelector("#gambleHint"),
+  gambleTabs: document.querySelector(".gamble-tabs"),
+  oddEvenGame: document.querySelector("#oddEvenGame"),
+  ladderGame: document.querySelector("#ladderGame"),
+  oddEvenStage: document.querySelector("#oddEvenStage"),
+  oddEvenOrb: document.querySelector("#oddEvenOrb"),
+  oddEvenResult: document.querySelector("#oddEvenResult"),
+  ladderStage: document.querySelector("#ladderStage"),
+  ladderMarker: document.querySelector("#ladderMarker"),
+  ladderResult: document.querySelector("#ladderResult"),
   sword: document.querySelector("#sword"),
   swordName: document.querySelector("#swordName"),
   levelBadge: document.querySelector("#levelBadge"),
@@ -321,7 +386,7 @@ function playSweep(startFrequency, endFrequency, duration = 0.12, type = "sawtoo
   oscillator.stop(start + duration + 0.03);
 }
 
-function playNoiseBurst(duration = 0.12, volume = 0.04, delay = 0) {
+function playNoiseBurst(duration = 0.12, volume = 0.04, delay = 0, filterType = "bandpass", frequency = 1600) {
   const context = getAudioContext();
   if (context.state === "suspended") context.resume();
   const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
@@ -337,10 +402,13 @@ function playNoiseBurst(duration = 0.12, volume = 0.04, delay = 0) {
     data[i] = (Math.random() * 2 - 1) * fade;
   }
 
-  filter.type = "bandpass";
-  filter.frequency.setValueAtTime(1600, start);
-  filter.frequency.exponentialRampToValueAtTime(5200, start + duration * 0.55);
-  filter.Q.setValueAtTime(2.6, start);
+  filter.type = filterType;
+  filter.frequency.setValueAtTime(frequency, start);
+  filter.frequency.exponentialRampToValueAtTime(
+    filterType === "lowpass" ? Math.max(180, frequency * 0.45) : Math.max(220, frequency * 2.1),
+    start + duration * 0.55,
+  );
+  filter.Q.setValueAtTime(filterType === "lowpass" ? 0.8 : 2.6, start);
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.exponentialRampToValueAtTime(volume * SFX_VOLUME, start + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
@@ -361,6 +429,16 @@ function playSyntheticSwordHit() {
   playTone(988, 0.09, "triangle", 0.022, 0.17);
 }
 
+function playSyntheticFireworks() {
+  for (let burst = 0; burst < 4; burst += 1) {
+    const delay = burst * 0.22;
+    playNoiseBurst(0.34, 0.22, delay, "lowpass", 780);
+    playNoiseBurst(0.18, 0.11, delay + 0.045, "bandpass", 900);
+    playSweep(92, 42, 0.28, "sine", 0.14, delay);
+    playTone(130 + burst * 18, 0.13, "triangle", 0.09, delay + 0.02);
+  }
+}
+
 function ensureAttackSounds() {
   if (!attackSounds.length) {
     attackSounds = Array.from({ length: 4 }, () => {
@@ -373,11 +451,54 @@ function ensureAttackSounds() {
   return attackSounds;
 }
 
+function ensureFireworksSounds() {
+  if (!fireworksSounds.length) {
+    fireworksSounds = Array.from({ length: 3 }, () => {
+      const audio = new Audio(FIREWORKS_SOUND_PATH);
+      audio.preload = "auto";
+      audio.volume = FIREWORKS_SOUND_VOLUME;
+      return audio;
+    });
+  }
+  return fireworksSounds;
+}
+
+function loadFireworksAudioBuffer() {
+  if (fireworksAudioBuffer || fireworksAudioBufferPromise) return fireworksAudioBufferPromise;
+
+  fireworksAudioBufferPromise = fetch(encodeURI(FIREWORKS_SOUND_PATH))
+    .then((response) => {
+      if (!response.ok) throw new Error("Fireworks sound load failed.");
+      return response.arrayBuffer();
+    })
+    .then((arrayBuffer) => getAudioContext().decodeAudioData(arrayBuffer))
+    .then((audioBuffer) => {
+      fireworksAudioBuffer = audioBuffer;
+      return audioBuffer;
+    })
+    .catch(() => {
+      fireworksAudioBufferPromise = null;
+      return null;
+    });
+
+  return fireworksAudioBufferPromise;
+}
+
+function prepareCelebrationSounds() {
+  if (!state.soundEnabled) return;
+  ensureFireworksSounds().forEach((audio) => {
+    audio.load();
+  });
+  loadFireworksAudioBuffer();
+  if (audioContext?.state === "suspended") audioContext.resume();
+}
+
 function prepareSwordAttackSound() {
   if (!state.soundEnabled) return;
   ensureAttackSounds().forEach((audio) => {
     if (audio.readyState === 0) audio.load();
   });
+  prepareCelebrationSounds();
   if (audioContext?.state === "suspended") audioContext.resume();
 }
 
@@ -398,6 +519,50 @@ function playSwordAttackClip() {
   if (playPromise?.catch) {
     playPromise.catch(() => playSyntheticSwordHit());
   }
+}
+
+function playFireworksClip() {
+  if (fireworksAudioBuffer) {
+    const context = getAudioContext();
+    if (context.state === "suspended") context.resume();
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = fireworksAudioBuffer;
+    gain.gain.setValueAtTime(FIREWORKS_SOUND_VOLUME, context.currentTime);
+    source.connect(gain);
+    gain.connect(context.destination);
+    source.start(context.currentTime, Math.min(FIREWORKS_SOUND_START_SECONDS, fireworksAudioBuffer.duration - 0.05));
+    fireworksAudioSources.push(source);
+    source.onended = () => {
+      fireworksAudioSources = fireworksAudioSources.filter((item) => item !== source);
+    };
+    return;
+  }
+
+  ensureFireworksSounds();
+  const audio = fireworksSounds[fireworksSoundIndex];
+  fireworksSoundIndex = (fireworksSoundIndex + 1) % fireworksSounds.length;
+  audio.pause();
+  audio.currentTime = FIREWORKS_SOUND_START_SECONDS;
+  audio.volume = FIREWORKS_SOUND_VOLUME;
+
+  const playPromise = audio.play();
+  if (playPromise?.catch) {
+    playPromise.catch(() => playSyntheticFireworks());
+  }
+}
+
+function stopFireworksClips() {
+  fireworksAudioSources.forEach((source) => {
+    try {
+      source.stop();
+    } catch {}
+  });
+  fireworksAudioSources = [];
+  fireworksSounds.forEach((audio) => {
+    audio.pause();
+    audio.currentTime = 0;
+  });
 }
 
 function playSound(name) {
@@ -432,6 +597,16 @@ function playSound(name) {
       playTone(740, 0.08, "triangle", 0.07);
       playTone(988, 0.1, "triangle", 0.065, 0.07);
       playTone(1318, 0.16, "sine", 0.055, 0.16);
+    },
+    fireworks: () => {
+      playFireworksClip();
+    },
+    applause: () => {
+      for (let clap = 0; clap < 12; clap += 1) {
+        const delay = clap * 0.075;
+        playNoiseBurst(0.055, 0.11, delay, "bandpass", 1800);
+        playNoiseBurst(0.04, 0.075, delay + 0.022, "bandpass", 2600);
+      }
     },
   };
   patterns[name]?.();
@@ -658,6 +833,7 @@ function stopBgm() {
 }
 
 function resumeBgmAfterGesture() {
+  prepareCelebrationSounds();
   if (state.bgmEnabled) startBgm();
 }
 
@@ -810,7 +986,7 @@ function getSwordTitle(level) {
 
 function getSwordImagePath(level) {
   const imageLevel = Math.max(1, Math.min(MAX_LEVEL, level));
-  return `assets/swords/stages-30-clean-transparent/sword-stage-${String(imageLevel).padStart(2, "0")}.png`;
+  return `assets/swords/stages-30-final-transparent/sword-stage-${String(imageLevel).padStart(2, "0")}.png`;
 }
 
 function getMonsterImagePath(level) {
@@ -926,6 +1102,54 @@ function removeTamperedSave() {
   localStorage.setItem(SAVE_MIGRATION_KEY, "1");
 }
 
+function applySaveData(parsed, { saveAfter = true } = {}) {
+  state.gold = Number.isFinite(parsed.gold)
+    ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parsed.gold)))
+    : state.gold;
+  state.level = Number.isFinite(parsed.level)
+    ? Math.min(MAX_LEVEL, Math.max(0, Math.round(parsed.level)))
+    : state.level;
+  state.best = Number.isFinite(parsed.best)
+    ? Math.min(MAX_LEVEL, Math.max(0, Math.round(parsed.best)))
+    : state.best;
+  state.destroyed = Boolean(parsed.destroyed);
+  state.monsterLevel = Number.isFinite(parsed.monsterLevel)
+    ? clampMonsterLevel(parsed.monsterLevel)
+    : state.monsterLevel;
+  state.unlockedMonsterLevel = Number.isFinite(parsed.unlockedMonsterLevel)
+    ? clampMonsterLevel(parsed.unlockedMonsterLevel)
+    : Math.max(1, state.monsterLevel);
+  state.monsterLevel = Math.min(state.monsterLevel, state.unlockedMonsterLevel);
+  state.enhanceTarget = Number.isFinite(parsed.enhanceTarget)
+    ? clampEnhanceTarget(parsed.enhanceTarget)
+    : state.enhanceTarget;
+  state.soundEnabled =
+    typeof parsed.soundEnabled === "boolean" ? parsed.soundEnabled : state.soundEnabled;
+  state.bgmEnabled =
+    typeof parsed.bgmEnabled === "boolean" ? parsed.bgmEnabled : state.bgmEnabled;
+  state.theme = parsed.theme === "light" ? "light" : "dark";
+  state.inventory = normalizeInventory(parsed.inventory);
+  state.selectedItems = normalizeSelectedItems(parsed.selectedItems, parsed.selectedItem);
+  state.runStartedAt = Number.isFinite(parsed.runStartedAt)
+    ? Math.min(Date.now(), Math.max(0, parsed.runStartedAt))
+    : Date.now();
+  state.spentGold = Number.isFinite(parsed.spentGold)
+    ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parsed.spentGold)))
+    : 0;
+  state.enhanceAttempts = Number.isFinite(parsed.enhanceAttempts)
+    ? Math.max(0, Math.floor(parsed.enhanceAttempts))
+    : 0;
+  state.maxCompletionShown =
+    typeof parsed.maxCompletionShown === "boolean" ? parsed.maxCompletionShown : state.best >= MAX_LEVEL;
+  state.balanceVersion = parsed.balanceVersion === BALANCE_VERSION ? BALANCE_VERSION : 0;
+  state.monsterHp =
+    state.balanceVersion === BALANCE_VERSION && Number.isFinite(parsed.monsterHp)
+      ? parsed.monsterHp
+      : 0;
+  state.balanceVersion = BALANCE_VERSION;
+  if (saveAfter) saveGame();
+}
+
 function loadGame() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return;
@@ -936,51 +1160,7 @@ function loadGame() {
       removeTamperedSave();
       return;
     }
-    state.gold = Number.isFinite(parsed.gold)
-      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parsed.gold)))
-      : state.gold;
-    state.level = Number.isFinite(parsed.level)
-      ? Math.min(MAX_LEVEL, Math.max(0, Math.round(parsed.level)))
-      : state.level;
-    state.best = Number.isFinite(parsed.best)
-      ? Math.min(MAX_LEVEL, Math.max(0, Math.round(parsed.best)))
-      : state.best;
-    state.destroyed = Boolean(parsed.destroyed);
-    state.monsterLevel = Number.isFinite(parsed.monsterLevel)
-      ? clampMonsterLevel(parsed.monsterLevel)
-      : state.monsterLevel;
-    state.unlockedMonsterLevel = Number.isFinite(parsed.unlockedMonsterLevel)
-      ? clampMonsterLevel(parsed.unlockedMonsterLevel)
-      : Math.max(1, state.monsterLevel);
-    state.monsterLevel = Math.min(state.monsterLevel, state.unlockedMonsterLevel);
-    state.enhanceTarget = Number.isFinite(parsed.enhanceTarget)
-      ? clampEnhanceTarget(parsed.enhanceTarget)
-      : state.enhanceTarget;
-    state.soundEnabled =
-      typeof parsed.soundEnabled === "boolean" ? parsed.soundEnabled : state.soundEnabled;
-    state.bgmEnabled =
-      typeof parsed.bgmEnabled === "boolean" ? parsed.bgmEnabled : state.bgmEnabled;
-    state.theme = parsed.theme === "light" ? "light" : "dark";
-    state.inventory = normalizeInventory(parsed.inventory);
-    state.selectedItems = normalizeSelectedItems(parsed.selectedItems, parsed.selectedItem);
-    state.runStartedAt = Number.isFinite(parsed.runStartedAt)
-      ? Math.min(Date.now(), Math.max(0, parsed.runStartedAt))
-      : Date.now();
-    state.spentGold = Number.isFinite(parsed.spentGold)
-      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parsed.spentGold)))
-      : 0;
-    state.enhanceAttempts = Number.isFinite(parsed.enhanceAttempts)
-      ? Math.max(0, Math.floor(parsed.enhanceAttempts))
-      : 0;
-    state.maxCompletionShown =
-      typeof parsed.maxCompletionShown === "boolean" ? parsed.maxCompletionShown : state.best >= MAX_LEVEL;
-    state.balanceVersion = parsed.balanceVersion === BALANCE_VERSION ? BALANCE_VERSION : 0;
-    state.monsterHp =
-      state.balanceVersion === BALANCE_VERSION && Number.isFinite(parsed.monsterHp)
-        ? parsed.monsterHp
-        : 0;
-    state.balanceVersion = BALANCE_VERSION;
-    saveGame();
+    applySaveData(parsed);
   } catch {
     removeTamperedSave();
   }
@@ -989,6 +1169,199 @@ function loadGame() {
 function saveGame() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(createSignedSaveData()));
   localStorage.setItem(SAVE_MIGRATION_KEY, "1");
+  queueCloudSave();
+}
+
+function getCloudSaveRef(user = currentUser) {
+  if (!firebaseDb || !user) return null;
+  return doc(firebaseDb, FIRESTORE_SAVES_COLLECTION, user.uid);
+}
+
+function queueCloudSave() {
+  if (!currentUser || !firebaseDb || cloudSaveLoading) return;
+  if (cloudSaveTimer) window.clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = window.setTimeout(() => {
+    cloudSaveTimer = null;
+    saveCloudGame();
+  }, 700);
+}
+
+async function saveCloudGame() {
+  const saveRef = getCloudSaveRef();
+  if (!saveRef) return;
+
+  try {
+    await setDoc(saveRef, {
+      save: getSaveData(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    if (elements.authHint) elements.authHint.textContent = "온라인 저장 완료";
+  } catch {
+    if (elements.authHint) elements.authHint.textContent = "온라인 저장 실패. Firebase 설정을 확인하세요.";
+  }
+}
+
+async function loadCloudGame(user) {
+  const saveRef = getCloudSaveRef(user);
+  if (!saveRef) return;
+
+  cloudSaveLoading = true;
+  try {
+    const snapshot = await getDoc(saveRef);
+    if (snapshot.exists() && snapshot.data()?.save) {
+      applySaveData(snapshot.data().save, { saveAfter: false });
+      saveGame();
+      ensureMonsterHp();
+      render();
+      setMessage("로그인 저장 데이터를 불러왔습니다.", "success");
+      if (elements.authHint) elements.authHint.textContent = "온라인 저장 데이터를 불러왔습니다.";
+    } else {
+      await setDoc(saveRef, {
+        save: getSaveData(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      if (elements.authHint) elements.authHint.textContent = "현재 진행도를 온라인에 저장했습니다.";
+    }
+  } catch {
+    if (elements.authHint) elements.authHint.textContent = "온라인 저장 불러오기 실패. 로컬 저장으로 진행합니다.";
+  } finally {
+    cloudSaveLoading = false;
+    renderAuth();
+  }
+}
+
+function getAuthEmail() {
+  return elements.authEmailInput.value.trim();
+}
+
+function getAuthPassword() {
+  return elements.authPasswordInput.value;
+}
+
+function validateAuthFields() {
+  const email = getAuthEmail();
+  const password = getAuthPassword();
+  if (!email) return "이메일을 입력하세요.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "이메일 형식이 올바르지 않습니다.";
+  if (!password) return "비밀번호를 입력하세요.";
+  if (password.length < 6) return "비밀번호는 6글자 이상으로 입력하세요.";
+  return "";
+}
+
+function getAuthErrorMessage(error) {
+  const code = error?.code || "";
+  if (code.includes("invalid-email")) return "이메일 형식이 올바르지 않습니다.";
+  if (code.includes("missing-password")) return "비밀번호를 입력하세요.";
+  if (code.includes("weak-password")) return "비밀번호는 6글자 이상으로 입력하세요.";
+  if (code.includes("email-already-in-use")) return "이미 가입된 이메일입니다. 로그인하세요.";
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
+    return "이메일 또는 비밀번호가 맞지 않습니다.";
+  }
+  if (code.includes("operation-not-allowed")) return "Firebase 콘솔에서 Google 또는 이메일 로그인을 켜야 합니다.";
+  if (code.includes("configuration-not-found")) return "Firebase Authentication 설정이 아직 없습니다. 콘솔에서 로그인 제공업체를 먼저 켜야 합니다.";
+  if (code.includes("popup-closed-by-user")) return "Google 로그인 창이 닫혔습니다.";
+  if (code.includes("popup-blocked")) return "브라우저가 Google 로그인 팝업을 차단했습니다.";
+  if (code.includes("account-exists-with-different-credential")) return "같은 이메일로 다른 로그인 방식이 이미 등록되어 있습니다.";
+  if (code.includes("unauthorized-domain")) return "Firebase 인증 도메인에 현재 주소가 등록되지 않았습니다.";
+  if (code.includes("network-request-failed")) return "네트워크 연결 문제로 Firebase에 접속하지 못했습니다.";
+  if (code.includes("too-many-requests")) return "요청이 너무 많습니다. 잠시 후 다시 시도하세요.";
+  if (code.includes("api-key-not-valid") || code.includes("invalid-api-key")) return "Firebase API 키 설정을 확인하세요.";
+  return code ? `로그인 처리에 실패했습니다. (${code})` : "로그인 처리에 실패했습니다.";
+}
+
+function openAuthModal() {
+  elements.authModal.classList.remove("hidden");
+  renderAuth();
+  window.setTimeout(() => elements.authEmailInput.focus(), 50);
+}
+
+function closeAuthModal() {
+  authPromptDismissed = true;
+  elements.authModal.classList.add("hidden");
+}
+
+function showStartupAuthPrompt() {
+  if (authPromptDismissed || authPromptShown || currentUser) return;
+  authPromptShown = true;
+  openAuthModal();
+}
+
+function renderAuth() {
+  const signedIn = Boolean(currentUser);
+  if (elements.authToggleButton) elements.authToggleButton.textContent = signedIn ? "저장됨" : "로그인";
+  elements.authStatus.textContent = signedIn
+    ? `로그인됨: ${currentUser.email}`
+    : "로그인하면 다른 기기에서도 저장 데이터를 불러올 수 있습니다.";
+  elements.authLogoutButton.classList.toggle("hidden", !signedIn);
+  elements.authGoogleButton.disabled = signedIn || cloudSaveLoading;
+  elements.authLoginButton.disabled = signedIn || cloudSaveLoading;
+  elements.authSignupButton.disabled = signedIn || cloudSaveLoading;
+  elements.authEmailInput.disabled = signedIn || cloudSaveLoading;
+  elements.authPasswordInput.disabled = signedIn || cloudSaveLoading;
+}
+
+async function loginWithGoogle() {
+  if (!firebaseAuth || !googleAuthProvider) {
+    elements.authHint.textContent = "Firebase 연결이 준비되지 않았습니다.";
+    return;
+  }
+
+  elements.authHint.textContent = "Google 로그인 중...";
+  try {
+    await signInWithPopup(firebaseAuth, googleAuthProvider);
+    elements.authHint.textContent = "Google 로그인 완료. 저장 데이터를 확인 중입니다.";
+  } catch (error) {
+    elements.authHint.textContent = getAuthErrorMessage(error);
+  }
+}
+
+async function loginWithPassword() {
+  if (!firebaseAuth) {
+    elements.authHint.textContent = "Firebase 연결이 준비되지 않았습니다.";
+    return;
+  }
+
+  const validationMessage = validateAuthFields();
+  if (validationMessage) {
+    elements.authHint.textContent = validationMessage;
+    return;
+  }
+
+  elements.authHint.textContent = "로그인 중...";
+  try {
+    await signInWithEmailAndPassword(firebaseAuth, getAuthEmail(), getAuthPassword());
+  } catch (error) {
+    elements.authHint.textContent = getAuthErrorMessage(error);
+  }
+}
+
+async function signupWithPassword() {
+  if (!firebaseAuth) {
+    elements.authHint.textContent = "Firebase 연결이 준비되지 않았습니다.";
+    return;
+  }
+
+  const validationMessage = validateAuthFields();
+  if (validationMessage) {
+    elements.authHint.textContent = validationMessage;
+    return;
+  }
+
+  elements.authHint.textContent = "계정 생성 중...";
+  try {
+    await createUserWithEmailAndPassword(firebaseAuth, getAuthEmail(), getAuthPassword());
+    elements.authHint.textContent = "회원가입 완료. 저장 데이터를 확인 중입니다.";
+  } catch (error) {
+    elements.authHint.textContent = getAuthErrorMessage(error);
+  }
+}
+
+async function logoutAuth() {
+  if (!firebaseAuth) return;
+  await saveCloudGame();
+  await signOut(firebaseAuth);
+  elements.authHint.textContent = "로그아웃했습니다. 이 기기에는 로컬 저장이 남아 있습니다.";
+  renderAuth();
 }
 
 function loadRankings() {
@@ -1047,7 +1420,7 @@ async function loadRemoteRankings() {
 }
 
 function sanitizeRankingName(value) {
-  return value.replace(/[^a-zA-Z]/g, "").slice(0, 10);
+  return value.replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 10);
 }
 
 function escapeHtml(value) {
@@ -1097,9 +1470,20 @@ function formatGold(value) {
     const formatted = platinum >= 100
       ? Math.floor(platinum).toLocaleString("ko-KR")
       : platinum.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
-    return `${formatted} 백금`;
+    return `${formatted} 💠백금`;
   }
-  return `${value.toLocaleString("ko-KR")} G`;
+  return `${value.toLocaleString("ko-KR")} 🪙`;
+}
+
+function formatGoldHtml(value) {
+  if (value >= 1000000) {
+    const platinum = value / 1000000;
+    const formatted = platinum >= 100
+      ? Math.floor(platinum).toLocaleString("ko-KR")
+      : platinum.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+    return `${formatted} 💠백금`;
+  }
+  return `${value.toLocaleString("ko-KR")} <span class="gold-coin-icon" aria-label="골드"></span>`;
 }
 
 function formatDamage(value) {
@@ -1174,7 +1558,7 @@ async function renderRankingList() {
         <span>${escapeHtml(entry.name)}</span>
         <div class="ranking-meta">
           <em>시간 ${Number.isFinite(entry.clearTimeMs) ? formatDuration(entry.clearTimeMs) : "-"}</em>
-          <em>골드 ${Number.isFinite(entry.spentGold) ? formatGold(entry.spentGold) : "-"}</em>
+          <em>골드 ${Number.isFinite(entry.spentGold) ? formatGoldHtml(entry.spentGold) : "-"}</em>
           <em>시도 ${Number.isFinite(entry.enhanceAttempts) ? `${Number(entry.enhanceAttempts).toLocaleString("ko-KR")}회` : "-"}</em>
           <em>${formatRankingDate(entry.time)}</em>
         </div>
@@ -1204,8 +1588,193 @@ function closeCoffeeModal() {
   elements.coffeeModal.classList.add("hidden");
 }
 
+function openGambleModal() {
+  elements.gambleModal.classList.remove("hidden");
+  resetGambleStages();
+  render();
+}
+
+function closeGambleModal() {
+  if (gambleInProgress) return;
+  elements.gambleModal.classList.add("hidden");
+}
+
+function resetGambleStages() {
+  elements.oddEvenStage.classList.remove("rolling", "success", "fail");
+  elements.oddEvenOrb.textContent = "?";
+  elements.oddEvenResult.textContent = "홀 또는 짝을 선택하세요";
+  elements.ladderStage.classList.remove("running", "success", "fail");
+  elements.ladderMarker.className = "ladder-marker";
+  elements.ladderResult.textContent = "1, 2, 3줄 중 하나를 선택하세요";
+}
+
+function setGambleType(type) {
+  if (gambleInProgress || !GAMBLE_TYPES.includes(type)) return;
+  activeGambleType = type;
+  resetGambleStages();
+  render();
+}
+
+function getGambleBetAmount() {
+  const parsed = Math.floor(Number(elements.gambleBetInput.value));
+  const maxPlatinum = Math.floor(Number.MAX_SAFE_INTEGER / PLATINUM_VALUE);
+  const platinum = Number.isFinite(parsed) ? Math.min(maxPlatinum, Math.max(1, parsed)) : 1;
+  elements.gambleBetInput.value = platinum;
+  return platinum * PLATINUM_VALUE;
+}
+
+function canStartGamble(betAmount) {
+  return !gambleInProgress && betAmount >= MIN_GAMBLE_BET && state.gold >= betAmount;
+}
+
+function finishGamble({ gameName, choiceText, resultText, won, betAmount, multiplier }) {
+  if (won) {
+    const payout = betAmount * multiplier;
+    state.gold = Math.min(Number.MAX_SAFE_INTEGER, state.gold + payout);
+    playSound("gold");
+    elements.gambleHint.textContent = `${gameName} 성공! ${formatGold(payout)} 획득`;
+    addLog(`${gameName} 성공: ${choiceText} 선택, ${resultText} 결과, ${formatGold(payout)} 획득`, "success");
+  } else {
+    elements.gambleHint.textContent = `${gameName} 실패. ${formatGold(betAmount)} 잃었습니다.`;
+    addLog(`${gameName} 실패: ${choiceText} 선택, ${resultText} 결과, ${formatGold(betAmount)} 손실`, "fail");
+  }
+  gambleInProgress = false;
+  saveGame();
+  render();
+}
+
+function startOddEvenGamble(choice) {
+  const betAmount = getGambleBetAmount();
+  if (!canStartGamble(betAmount)) {
+    elements.gambleHint.textContent = state.gold < betAmount
+      ? `골드가 부족합니다. 필요 금액: ${formatGold(betAmount)}`
+      : "최소 배팅금액은 1💠백금입니다.";
+    return;
+  }
+
+  gambleInProgress = true;
+  state.gold -= betAmount;
+  const number = Math.floor(Math.random() * 100) + 1;
+  const result = number % 2 === 0 ? "even" : "odd";
+  const resultText = result === "even" ? "짝" : "홀";
+  const choiceText = choice === "even" ? "짝" : "홀";
+  const won = choice === result;
+
+  elements.oddEvenStage.classList.remove("success", "fail");
+  elements.oddEvenStage.classList.add("rolling");
+  elements.oddEvenOrb.textContent = "?";
+  elements.oddEvenResult.textContent = "결과 확인 중...";
+  elements.gambleHint.textContent = `${formatGold(betAmount)} 배팅`;
+  saveGame();
+  render();
+
+  window.setTimeout(() => {
+    elements.oddEvenStage.classList.remove("rolling");
+    elements.oddEvenStage.classList.add(won ? "success" : "fail");
+    elements.oddEvenOrb.textContent = number;
+    elements.oddEvenResult.textContent = `${number} = ${resultText}`;
+    finishGamble({
+      gameName: "홀짝",
+      choiceText,
+      resultText,
+      won,
+      betAmount,
+      multiplier: 2,
+    });
+  }, 1050);
+}
+
+function getLadderPath(choice, result) {
+  const start = Math.min(3, Math.max(1, Number(choice)));
+  const end = Math.min(3, Math.max(1, Number(result)));
+  const middle = start === end ? start : 6 - start - end;
+  return [
+    { lane: start, y: 0 },
+    { lane: start, y: 22 },
+    { lane: middle, y: 38 },
+    { lane: middle, y: 58 },
+    { lane: end, y: 74 },
+    { lane: end, y: 100 },
+  ];
+}
+
+function setLadderMarkerPosition(point) {
+  elements.ladderMarker.style.left = `calc(${(point.lane - 1) * 50}% - 0.55rem)`;
+  elements.ladderMarker.style.top = `calc(${point.y}% - 0.55rem)`;
+}
+
+function animateLadderPath(path, onDone) {
+  path.forEach((point, index) => {
+    window.setTimeout(() => setLadderMarkerPosition(point), index * 310);
+  });
+  window.setTimeout(onDone, path.length * 310 + 120);
+}
+
+function startLadderGamble(choice) {
+  const betAmount = getGambleBetAmount();
+  if (!canStartGamble(betAmount)) {
+    elements.gambleHint.textContent = state.gold < betAmount
+      ? `골드가 부족합니다. 필요 금액: ${formatGold(betAmount)}`
+      : "최소 배팅금액은 1💠백금입니다.";
+    return;
+  }
+
+  gambleInProgress = true;
+  state.gold -= betAmount;
+  const result = Math.floor(Math.random() * 3) + 1;
+  const won = Number(choice) === result;
+  const path = getLadderPath(choice, result);
+
+  elements.ladderStage.classList.remove("success", "fail");
+  elements.ladderStage.classList.add("running");
+  elements.ladderMarker.className = "ladder-marker show";
+  setLadderMarkerPosition(path[0]);
+  elements.ladderResult.textContent = `${choice}줄 출발`;
+  elements.gambleHint.textContent = `${formatGold(betAmount)} 배팅`;
+  saveGame();
+  render();
+
+  animateLadderPath(path, () => {
+    elements.ladderStage.classList.remove("running");
+    elements.ladderStage.classList.add(won ? "success" : "fail");
+    elements.ladderResult.textContent = `${result}줄 도착`;
+    finishGamble({
+      gameName: "사다리",
+      choiceText: `${choice}줄`,
+      resultText: `${result}줄`,
+      won,
+      betAmount,
+      multiplier: 3,
+    });
+  });
+}
+
 function closeCompletionModal() {
+  if (rankingAutoRegisterTimer) {
+    window.clearTimeout(rankingAutoRegisterTimer);
+    rankingAutoRegisterTimer = null;
+  }
+  stopCompletionCelebration();
   elements.completionModal.classList.add("hidden");
+}
+
+function playCompletionCelebration() {
+  playSound("fireworks");
+  window.setTimeout(() => playSound("applause"), 240);
+}
+
+function startCompletionCelebration() {
+  stopCompletionCelebration();
+  playCompletionCelebration();
+  completionCelebrationTimer = window.setInterval(playCompletionCelebration, 2300);
+}
+
+function stopCompletionCelebration() {
+  if (completionCelebrationTimer) {
+    window.clearInterval(completionCelebrationTimer);
+    completionCelebrationTimer = null;
+  }
+  stopFireworksClips();
 }
 
 function showFireworks() {
@@ -1237,21 +1806,51 @@ function showFireworks() {
   }, 2200);
 }
 
-function showCompletionModal() {
+function showCompletionModal(soundWaited = false) {
+  if (state.soundEnabled && !fireworksAudioBuffer && !soundWaited) {
+    loadFireworksAudioBuffer()?.then(() => showCompletionModal(true));
+    return;
+  }
+
   stopAutoEnhance();
-  showFireworks();
+  if (rankingAutoRegisterTimer) {
+    window.clearTimeout(rankingAutoRegisterTimer);
+    rankingAutoRegisterTimer = null;
+  }
+  rankingRegistering = false;
   elements.rankingNameInput.value = "";
-  elements.rankingNameHint.textContent = "영어만 최대 10글자까지 입력할 수 있습니다.";
+  elements.rankingNameInput.disabled = false;
+  elements.rankingRegisterButton.disabled = false;
+  elements.rankingNameHint.textContent = "한글, 영문, 숫자로 최대 10글자까지 입력할 수 있습니다.";
   elements.completionModal.classList.remove("hidden");
+  window.requestAnimationFrame(() => {
+    startCompletionCelebration();
+    showFireworks();
+  });
   window.setTimeout(() => elements.rankingNameInput.focus(), 50);
 }
 
+function finishRankingRegistration(name, savedOnline) {
+  closeCompletionModal();
+  resetGame();
+  const savedText = savedOnline ? "온라인 랭킹에 저장했습니다." : "이 기기의 랭킹에 저장했습니다.";
+  setMessage(`${name} ${savedText} 게임을 새로 시작합니다.`, "success");
+  addLog(`+30 랭킹 저장 완료: ${name}`, "success");
+  openRankingModal();
+}
+
 async function registerRanking() {
+  if (rankingRegistering) return;
+  if (rankingAutoRegisterTimer) {
+    window.clearTimeout(rankingAutoRegisterTimer);
+    rankingAutoRegisterTimer = null;
+  }
+
   const name = sanitizeRankingName(elements.rankingNameInput.value);
   elements.rankingNameInput.value = name;
 
   if (!name) {
-    elements.rankingNameHint.textContent = "영어 이름을 입력하세요.";
+    elements.rankingNameHint.textContent = "닉네임을 입력하세요.";
     return;
   }
 
@@ -1265,8 +1864,10 @@ async function registerRanking() {
     time: Date.now(),
   };
 
+  rankingRegistering = true;
+  elements.rankingNameInput.disabled = true;
   elements.rankingRegisterButton.disabled = true;
-  elements.rankingNameHint.textContent = "랭킹 등록 중...";
+  elements.rankingNameHint.textContent = "랭킹 저장 중...";
 
   try {
     if (!firebaseDb) throw new Error("Firestore is not ready.");
@@ -1277,19 +1878,32 @@ async function registerRanking() {
     const rankings = loadRankings();
     rankings.push(entry);
     saveRankings(rankings);
-    elements.rankingNameHint.textContent = `${name} 온라인 랭킹 등록 완료`;
-    closeCompletionModal();
-    openRankingModal();
+    finishRankingRegistration(name, true);
   } catch {
     const rankings = loadRankings();
     rankings.push(entry);
     saveRankings(rankings);
-    elements.rankingNameHint.textContent = `${name} 랭킹을 이 기기에만 저장했습니다. Firestore 설정을 확인하세요.`;
-    closeCompletionModal();
-    openRankingModal();
+    finishRankingRegistration(name, false);
   } finally {
+    rankingRegistering = false;
+    elements.rankingNameInput.disabled = false;
     elements.rankingRegisterButton.disabled = false;
   }
+}
+
+function scheduleRankingRegistration() {
+  if (rankingRegistering) return;
+  if (rankingAutoRegisterTimer) window.clearTimeout(rankingAutoRegisterTimer);
+
+  const name = sanitizeRankingName(elements.rankingNameInput.value);
+  if (!name) {
+    rankingAutoRegisterTimer = null;
+    elements.rankingNameHint.textContent = "닉네임을 입력하세요.";
+    return;
+  }
+
+  elements.rankingNameHint.textContent = "잠시 후 자동 저장됩니다.";
+  rankingAutoRegisterTimer = window.setTimeout(registerRanking, 1500);
 }
 
 function renderProbabilityTable() {
@@ -1387,10 +2001,10 @@ function renderShop() {
     return `
       <div class="shop-item">
         <strong>${item.name}</strong>
-        <span class="shop-price">1개 ${formatGold(price)}</span>
+        <span class="shop-price">1개 ${formatGoldHtml(price)}</span>
         <div class="shop-price-list">
-          <span>10개 ${formatGold(price * 10)}</span>
-          <span>100개 ${formatGold(price * 100)}</span>
+          <span>10개 ${formatGoldHtml(price * 10)}</span>
+          <span>100개 ${formatGoldHtml(price * 100)}</span>
         </div>
         <div class="shop-buy-row">${buttons}</div>
       </div>
@@ -1398,9 +2012,29 @@ function renderShop() {
   }).join("");
 
   elements.shopItems.innerHTML = `
-    <div class="shop-wallet">가지고 있는 돈 ${formatGold(state.gold)}</div>
+    <div class="shop-wallet">가지고 있는 돈 ${formatGoldHtml(state.gold)}</div>
     ${rows}
   `;
+}
+
+function renderGamble() {
+  const parsed = Math.floor(Number(elements.gambleBetInput.value));
+  const platinum = Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+  const betAmount = Math.max(MIN_GAMBLE_BET, platinum * PLATINUM_VALUE);
+  const canBet = canStartGamble(betAmount);
+
+  elements.gambleWallet.innerHTML = `보유 ${formatGoldHtml(state.gold)}`;
+  elements.oddEvenGame.classList.toggle("hidden", activeGambleType !== "oddEven");
+  elements.ladderGame.classList.toggle("hidden", activeGambleType !== "ladder");
+  elements.gambleTabs.querySelectorAll("[data-gamble-tab]").forEach((button) => {
+    button.classList.toggle("selected", button.dataset.gambleTab === activeGambleType);
+    button.disabled = gambleInProgress;
+  });
+  elements.gambleModal.querySelectorAll("[data-odd-even-choice], [data-ladder-choice]").forEach((button) => {
+    button.disabled = !canBet;
+  });
+  elements.gambleBetInput.disabled = gambleInProgress;
+  elements.gambleCloseButton.disabled = gambleInProgress;
 }
 
 function render() {
@@ -1421,8 +2055,8 @@ function render() {
   elements.sword.style.backgroundImage = `url("${getSwordImagePath(state.level)}")`;
   elements.attackSword.style.backgroundImage = `url("${getSwordImagePath(state.level)}")`;
   elements.attackSword.style.setProperty("--attack-scale", 1 + Math.min(0.55, state.level * 0.025));
-  elements.gold.textContent = formatGold(state.gold);
-  elements.cost.textContent = isMax ? "완료" : formatGold(cost);
+  elements.gold.innerHTML = formatGoldHtml(state.gold);
+  elements.cost.innerHTML = isMax ? "완료" : formatGoldHtml(cost);
   elements.chance.textContent = isMax ? "100%" : formatPercent(chance);
   elements.breakChance.textContent = isMax ? "0%" : formatPercent(getBreakChance(state.level));
   elements.fallChance.textContent = isMax ? "0%" : formatPercent(getFallChance(state.level));
@@ -1452,7 +2086,7 @@ function render() {
   elements.monsterStage.textContent = `${state.monsterLevel} / ${MAX_MONSTER_LEVEL} 단계`;
   elements.monster.style.backgroundImage = `url("${getMonsterImagePath(state.monsterLevel)}")`;
   elements.monsterHpText.textContent = `HP ${state.monsterHp.toLocaleString("ko-KR")} / ${monsterMaxHp.toLocaleString("ko-KR")}`;
-  elements.monsterReward.textContent = `보상 ${formatGold(getMonsterReward(state.monsterLevel))}`;
+  elements.monsterReward.innerHTML = `보상 ${formatGoldHtml(getMonsterReward(state.monsterLevel))}`;
   elements.monsterHpBar.style.width = `${monsterProgress}%`;
   elements.battleTimer.textContent = `남은 시간 ${Math.ceil(battleTimeLeft)}초`;
   elements.battleTimeBar.style.width = `${Math.max(0, (battleTimeLeft / BATTLE_TIME_LIMIT) * 100)}%`;
@@ -1466,6 +2100,8 @@ function render() {
   renderInventory();
   renderDropRateTable();
   renderShop();
+  renderGamble();
+  renderAuth();
 }
 
 function showBattle() {
@@ -1597,13 +2233,13 @@ function playSwordAttackMotion() {
 function playCoinDrop(amount) {
   const value = document.createElement("div");
   value.className = "coin-value";
-  value.textContent = `+${formatGold(amount)}`;
+  value.innerHTML = `+${formatGoldHtml(amount)}`;
   elements.coinLayer.append(value);
 
   for (let i = 0; i < 7; i += 1) {
     const coin = document.createElement("div");
     coin.className = "coin";
-    coin.textContent = "G";
+    coin.textContent = "🪙";
     coin.style.setProperty("--coin-x", `${(i - 3) * 1.25}rem`);
     coin.style.animationDelay = `${i * 45}ms`;
     elements.coinLayer.append(coin);
@@ -1966,6 +2602,7 @@ function showItemDepletedBanner() {
 }
 
 function resetGame() {
+  stopCompletionCelebration();
   stopAutoAttack();
   stopAutoEnhance();
   stopBattleTimer();
@@ -2001,12 +2638,21 @@ elements.enhanceTargetNextButton.addEventListener("click", () => changeEnhanceTa
 elements.soundToggleButton.addEventListener("click", toggleSound);
 elements.bgmToggleButton.addEventListener("click", toggleBgm);
 elements.rankingToggleButton.addEventListener("click", openRankingModal);
+if (elements.authToggleButton) elements.authToggleButton.addEventListener("click", openAuthModal);
+elements.authCloseButton.addEventListener("click", closeAuthModal);
+elements.authGoogleButton.addEventListener("click", loginWithGoogle);
+elements.authLoginButton.addEventListener("click", loginWithPassword);
+elements.authSignupButton.addEventListener("click", signupWithPassword);
+elements.authLogoutButton.addEventListener("click", logoutAuth);
 elements.themeToggleButton.addEventListener("click", toggleTheme);
 elements.workButton.addEventListener("click", showBattle);
 elements.topWorkButton.addEventListener("click", showBattle);
 elements.resetButton.addEventListener("click", resetGame);
 elements.backButton.addEventListener("click", showUpgrade);
 elements.stayButton.addEventListener("click", showUpgrade);
+elements.gambleToggleButton.addEventListener("click", openGambleModal);
+elements.gambleCloseButton.addEventListener("click", closeGambleModal);
+elements.gambleBetInput.addEventListener("input", renderGamble);
 elements.attackButton.addEventListener("pointerdown", prepareSwordAttackSound);
 elements.attackButton.addEventListener("click", attackMonster);
 elements.autoAttackButton.addEventListener("click", toggleAutoAttack);
@@ -2030,6 +2676,12 @@ elements.shopItems.addEventListener("click", (event) => {
 });
 elements.rankingNameInput.addEventListener("input", () => {
   elements.rankingNameInput.value = sanitizeRankingName(elements.rankingNameInput.value);
+  scheduleRankingRegistration();
+});
+elements.rankingNameInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  registerRanking();
 });
 elements.rankingRegisterButton.addEventListener("click", registerRanking);
 elements.completionDoneButton.addEventListener("click", closeCompletionModal);
@@ -2047,10 +2699,55 @@ elements.rankingTabs.addEventListener("click", (event) => {
 elements.rankingModal.addEventListener("click", (event) => {
   if (event.target === elements.rankingModal) closeRankingModal();
 });
+elements.authModal.addEventListener("click", (event) => {
+  if (event.target === elements.authModal) closeAuthModal();
+});
 elements.coffeeModal.addEventListener("click", (event) => {
   if (event.target === elements.coffeeModal) closeCoffeeModal();
 });
+elements.gambleTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-gamble-tab]");
+  if (!button) return;
+  setGambleType(button.dataset.gambleTab);
+});
+elements.gambleModal.addEventListener("click", (event) => {
+  if (event.target === elements.gambleModal) closeGambleModal();
+
+  const oddEvenButton = event.target.closest("[data-odd-even-choice]");
+  if (oddEvenButton) {
+    startOddEvenGamble(oddEvenButton.dataset.oddEvenChoice);
+    return;
+  }
+
+  const ladderButton = event.target.closest("[data-ladder-choice]");
+  if (ladderButton) {
+    startLadderGamble(ladderButton.dataset.ladderChoice);
+  }
+});
+
+if (firebaseAuth) {
+  onAuthStateChanged(firebaseAuth, (user) => {
+    currentUser = user;
+    renderAuth();
+    if (user) {
+      elements.authModal.classList.add("hidden");
+      elements.authHint.textContent = "온라인 저장 데이터를 확인 중...";
+      loadCloudGame(user);
+    } else {
+      showStartupAuthPrompt();
+    }
+  });
+}
 
 loadGame();
 ensureMonsterHp();
 render();
+prepareCelebrationSounds();
+
+if (!firebaseAuth) {
+  showStartupAuthPrompt();
+}
+
+if (new URLSearchParams(window.location.search).has("preview30")) {
+  window.setTimeout(showCompletionModal, 250);
+}

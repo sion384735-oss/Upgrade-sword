@@ -229,6 +229,43 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.auth-form {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.auth-form input {
+  min-width: 0;
+  min-height: 3rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 0.8rem;
+  background: var(--deeper-bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.google-auth-button {
+  grid-column: 1 / -1;
+}
+
 .modal-hint {
   min-height: 1.35rem;
   margin-bottom: 0.8rem;
@@ -268,6 +305,210 @@ button:disabled {
   border-color: rgba(246, 196, 83, 0.85);
   background: rgba(246, 196, 83, 0.2);
   transform: translateY(-1px);
+}
+
+.gamble-card {
+  width: min(34rem, 100%);
+}
+
+.gamble-wallet {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface-bg);
+  color: var(--gold);
+  font-weight: 900;
+}
+
+.gamble-bet-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.gamble-bet-row input {
+  min-width: 0;
+  min-height: 2.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 0.8rem;
+  background: var(--deeper-bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 900;
+}
+
+.gamble-bet-row em {
+  color: var(--gold);
+  font-style: normal;
+}
+
+.gamble-tabs,
+.gamble-choice-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.gamble-tabs {
+  margin-bottom: 0.75rem;
+}
+
+.gamble-tabs .secondary,
+.gamble-choice-row button {
+  min-height: 2.65rem;
+  padding: 0 0.65rem;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.gamble-tabs .selected {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(246, 200, 95, 0.22);
+}
+
+.gamble-game {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.odd-even-stage,
+.ladder-stage {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: var(--surface-bg);
+}
+
+.odd-even-stage {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+}
+
+.odd-even-orb {
+  display: grid;
+  width: 5.25rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid rgba(246, 200, 95, 0.72);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 30%, #fff3bd, var(--gold) 48%, #684407 100%);
+  color: #2d1d03;
+  font-size: 2rem;
+  font-weight: 1000;
+  box-shadow: 0 0.8rem 1.7rem rgba(0, 0, 0, 0.3);
+}
+
+.odd-even-stage.rolling .odd-even-orb {
+  animation: odd-even-roll 1s ease-in-out both;
+}
+
+.odd-even-result,
+.ladder-result {
+  min-height: 1.4rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.odd-even-stage.success .odd-even-result,
+.ladder-stage.success .ladder-result {
+  color: var(--success);
+}
+
+.odd-even-stage.fail .odd-even-result,
+.ladder-stage.fail .ladder-result {
+  color: var(--danger);
+}
+
+.ladder-board {
+  position: relative;
+  width: min(19rem, 100%);
+  height: 13.5rem;
+  margin: 0 auto 0.75rem;
+}
+
+.ladder-line,
+.ladder-rung {
+  position: absolute;
+  background: rgba(119, 167, 255, 0.68);
+  box-shadow: 0 0 0.7rem rgba(119, 167, 255, 0.24);
+}
+
+.ladder-line {
+  top: 0;
+  bottom: 0;
+  width: 0.26rem;
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+
+.ladder-line.lane-1 {
+  left: 0;
+}
+
+.ladder-line.lane-2 {
+  left: 50%;
+}
+
+.ladder-line.lane-3 {
+  left: 100%;
+}
+
+.ladder-rung {
+  width: 50%;
+  height: 0.24rem;
+  border-radius: 999px;
+}
+
+.ladder-rung.rung-1 {
+  left: 0;
+  top: 24%;
+}
+
+.ladder-rung.rung-2 {
+  left: 50%;
+  top: 44%;
+}
+
+.ladder-rung.rung-3 {
+  left: 0;
+  top: 68%;
+}
+
+.ladder-marker {
+  position: absolute;
+  left: -0.55rem;
+  top: -0.55rem;
+  z-index: 2;
+  width: 1.1rem;
+  aspect-ratio: 1;
+  border: 2px solid #fff6c7;
+  border-radius: 999px;
+  background: var(--gold);
+  box-shadow: 0 0 1rem rgba(246, 200, 95, 0.8);
+  opacity: 0;
+  transition: left 280ms ease, top 280ms ease, opacity 140ms ease;
+}
+
+.ladder-marker.show {
+  opacity: 1;
+}
+
+.ladder-stage.running .ladder-marker {
+  animation: ladder-marker-pulse 620ms ease-in-out infinite;
+}
+
+#ladderGame .gamble-choice-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .ranking-list {
@@ -588,7 +829,7 @@ body.light .level-badge {
   position: relative;
   width: min(13.8rem, 54vw);
   height: min(16.7rem, 58vw);
-  background-image: url("assets/swords/stages-30-clean-transparent/sword-stage-01.png");
+  background-image: url("assets/swords/stages-30-final-transparent/sword-stage-01.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -606,7 +847,7 @@ body.light .level-badge {
   height: min(16.2rem, 52vw);
   pointer-events: none;
   opacity: 0;
-  background-image: url("assets/swords/stages-30-clean-transparent/sword-stage-01.png");
+  background-image: url("assets/swords/stages-30-final-transparent/sword-stage-01.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -638,11 +879,32 @@ body.light .level-badge {
   border-radius: 999px;
   background: radial-gradient(circle at 35% 30%, #fff7c6, var(--gold) 48%, #b87a18 100%);
   color: #5a3600;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 900;
+  line-height: 1;
   box-shadow: 0 0.65rem 1rem rgba(0, 0, 0, 0.3);
   animation: coin-drop 900ms ease-out both;
   transform: translate(var(--coin-x, 0), 0);
+}
+
+.gold-coin-icon {
+  display: inline-grid;
+  width: 0.95em;
+  aspect-ratio: 1;
+  margin-left: 0.16em;
+  place-items: center;
+  vertical-align: -0.12em;
+  border: 1px solid #ffe39a;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fff7c6, var(--gold) 48%, #b87a18 100%);
+  box-shadow: 0 0.08em 0.18em rgba(0, 0, 0, 0.3);
+}
+
+button .gold-coin-icon,
+.shop-price .gold-coin-icon,
+.shop-price-list .gold-coin-icon,
+.ranking-meta .gold-coin-icon {
+  width: 0.86em;
 }
 
 .coin-value {
@@ -1179,14 +1441,15 @@ body.light .level-badge {
 
 .settings-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
 }
 
 .settings-row .secondary {
   min-height: 2.55rem;
-  padding: 0 0.3rem;
-  font-size: 0.78rem;
+  width: 100%;
+  padding: 0 0.55rem;
+  font-size: 0.82rem;
   white-space: nowrap;
 }
 
@@ -1419,6 +1682,39 @@ body.light .level-badge {
   }
 }
 
+@keyframes odd-even-roll {
+  0% {
+    filter: blur(0);
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+
+  34% {
+    filter: blur(0.08rem);
+    transform: translateY(-0.65rem) rotate(190deg) scale(1.08);
+  }
+
+  68% {
+    filter: blur(0.05rem);
+    transform: translateY(0.2rem) rotate(420deg) scale(0.96);
+  }
+
+  100% {
+    filter: blur(0);
+    transform: translateY(0) rotate(720deg) scale(1);
+  }
+}
+
+@keyframes ladder-marker-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.28);
+  }
+}
+
 @keyframes item-drop-pop {
   0% {
     opacity: 0;
@@ -1536,11 +1832,15 @@ body.light .level-badge {
   }
 
   .settings-row {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.25rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
   }
 
   .ranking-register {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-actions {
     grid-template-columns: 1fr;
   }
 
@@ -1563,8 +1863,8 @@ body.light .level-badge {
 
   .settings-row .secondary {
     min-height: 2.75rem;
-    padding: 0 0.2rem;
-    font-size: 0.78rem;
+    padding: 0 0.45rem;
+    font-size: 0.82rem;
   }
 
   .compact-action,
