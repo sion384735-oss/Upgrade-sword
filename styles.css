@@ -159,6 +159,11 @@ button:disabled {
   display: none;
 }
 
+.mobile-inventory-button,
+.mobile-status-bar {
+  display: none;
+}
+
 .fireworks-layer {
   position: fixed;
   inset: 0;
@@ -1079,6 +1084,7 @@ body.light .level-badge {
 
 .gold-coin-icon {
   display: inline-grid;
+  flex: 0 0 auto;
   width: 0.95em;
   aspect-ratio: 1;
   margin-left: 0.16em;
@@ -1093,7 +1099,9 @@ body.light .level-badge {
 button .gold-coin-icon,
 .shop-price .gold-coin-icon,
 .shop-price-list .gold-coin-icon,
-.ranking-meta .gold-coin-icon {
+.ranking-meta .gold-coin-icon,
+.log .gold-coin-icon,
+.notice .gold-coin-icon {
   width: 0.86em;
 }
 
@@ -2145,6 +2153,42 @@ button .gold-coin-icon,
 }
 
 @media (max-width: 800px) {
+  button,
+  h1,
+  h2,
+  .notice,
+  .modal-hint,
+  .stat span,
+  .stat strong,
+  .progress-label span,
+  .battle-meta span,
+  .stage-readout span,
+  .stage-readout strong,
+  .gamble-wallet,
+  .gamble-custom-bet span,
+  .gamble-custom-bet em,
+  .odd-even-result,
+  .ladder-result,
+  .inventory-item strong,
+  .inventory-item em,
+  .inventory-item .item-description,
+  .shop-item-title strong,
+  .shop-item-meta span,
+  .shop-price,
+  .shop-sell-price,
+  .drop-rate-table td,
+  .ranking-row span,
+  .ranking-meta em,
+  .auth-form label span,
+  .developer-contact strong,
+  .developer-contact span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: keep-all;
+  }
+
   .game {
     grid-template-columns: 1fr;
     width: min(100% - 1rem, 36rem);
@@ -2243,6 +2287,10 @@ button .gold-coin-icon,
     grid-template-columns: 1fr;
   }
 
+  .google-auth-button {
+    display: none;
+  }
+
   .top-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2273,7 +2321,7 @@ button .gold-coin-icon,
   .secondary {
     min-height: 3.6rem;
     padding: 0.55rem 1rem;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
   .settings-row .secondary {
@@ -2316,7 +2364,7 @@ button .gold-coin-icon,
   .gamble-choice-row button {
     min-height: 3.05rem;
     padding: 0.5rem 0.45rem;
-    font-size: 0.92rem;
+    font-size: 0.88rem;
   }
 
   .developer-contact {
@@ -2329,14 +2377,19 @@ button .gold-coin-icon,
 
   .compact-action,
   .icon-button {
-    min-height: 3.05rem;
-    padding: 0.68rem 0.72rem;
-    font-size: 0.95rem;
+    min-height: 2.9rem;
+    padding: 0.52rem 0.55rem;
+    font-size: 0.82rem;
   }
 
   #swordName {
     max-width: calc(100vw - 2rem);
     font-size: clamp(1.1rem, 5vw, 1.65rem);
+  }
+
+  .battle-view h1 {
+    max-width: calc(100vw - 7.5rem);
+    font-size: clamp(1.15rem, 5vw, 1.65rem);
   }
 
   .coffee-button {
@@ -2455,5 +2508,239 @@ button .gold-coin-icon,
     right: 1rem;
     top: 1rem;
     bottom: auto;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  .game {
+    gap: 0.45rem;
+    min-height: auto;
+  }
+
+  .stage {
+    gap: 0.45rem;
+    min-height: calc(100dvh - 1rem);
+    padding: 0.65rem;
+  }
+
+  .stage > .topbar > div:first-child {
+    padding-right: 5.7rem;
+  }
+
+  .stage .coffee-button {
+    display: none;
+  }
+
+  .mobile-inventory-button {
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+  }
+
+  .top-actions .compact-action,
+  .top-actions .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.85rem;
+    padding: 0.48rem 0.42rem;
+    font-size: 0.82rem;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .bag-icon {
+    position: relative;
+    display: inline-block;
+    width: 0.92rem;
+    height: 0.82rem;
+    flex: 0 0 auto;
+    border: 0.13rem solid var(--gold);
+    border-radius: 0.16rem 0.16rem 0.22rem 0.22rem;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent),
+      rgba(246, 200, 95, 0.16);
+  }
+
+  .bag-icon::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -0.42rem;
+    width: 0.48rem;
+    height: 0.42rem;
+    border: 0.12rem solid var(--gold);
+    border-bottom: 0;
+    border-radius: 999px 999px 0 0;
+    transform: translateX(-50%);
+  }
+
+  .top-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .battle-view .top-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .top-actions .compact-action,
+  .top-actions .icon-button {
+    min-height: 2.85rem;
+    padding: 0.48rem 0.42rem;
+    font-size: 0.82rem;
+    line-height: 1;
+  }
+
+  .mobile-status-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .mobile-status-bar > div {
+    display: flex;
+    min-height: 2.55rem;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.32rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.38rem 0.42rem;
+    background: var(--surface-bg);
+  }
+
+  .mobile-status-bar span {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .mobile-status-bar strong {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.12rem;
+    flex: 1 1 auto;
+    overflow: hidden;
+    margin-top: 0;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 900;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-status-bar strong .gold-coin-icon,
+  #gold .gold-coin-icon,
+  #cost .gold-coin-icon,
+  #mobileGold .gold-coin-icon,
+  #mobileCost .gold-coin-icon,
+  #monsterReward .gold-coin-icon,
+  .gamble-wallet .gold-coin-icon {
+    flex: 0 0 auto;
+    margin-left: 0.1em;
+  }
+
+  #gold,
+  #cost,
+  #mobileGold,
+  #mobileCost,
+  #monsterReward,
+  .gamble-wallet,
+  .shop-price,
+  .shop-sell-price,
+  .shop-price-list span,
+  .shop-wallet,
+  .coin-value {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.1em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sword-area,
+  .monster-area {
+    min-height: clamp(11rem, 34dvh, 16rem);
+  }
+
+  .sword {
+    width: min(10.8rem, 44vw);
+    height: min(17rem, 45dvh);
+  }
+
+  .monster {
+    width: min(13rem, 58vw);
+    height: min(13rem, 58vw);
+  }
+
+  .notice {
+    min-height: 2.25rem;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.78rem;
+  }
+
+  .inventory-block,
+  .drop-block,
+  .battle-view .battle-inventory-block {
+    display: none;
+  }
+
+  .upgrade-view > .inventory-block,
+  .battle-view > .inventory-block,
+  .battle-view > .drop-block {
+    display: none;
+  }
+
+  .controls {
+    gap: 0.35rem;
+  }
+
+  .controls .primary,
+  .controls .secondary {
+    min-height: 3.2rem;
+  }
+
+  .battle-status,
+  .battle-timer,
+  .monster-settings {
+    padding: 0.55rem;
+  }
+
+  .panel {
+    min-height: auto;
+    padding: 0.65rem;
+  }
+
+  .panel .stats-grid,
+  .panel .progress-block,
+  .panel .rates,
+  .panel .probability-block,
+  .panel .log {
+    display: none;
+  }
+
+  .developer-message {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .developer-message textarea {
+    min-height: 4.4rem;
   }
 }

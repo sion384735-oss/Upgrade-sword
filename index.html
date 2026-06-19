@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>검 강화하기</title>
-    <link rel="stylesheet" href="styles.css?v=20260619-ranking-icons" />
+    <link rel="stylesheet" href="styles.css?v=20260619-mobile-settings-back" />
   </head>
   <body>
     <main class="game">
@@ -53,11 +53,23 @@
             <button class="icon-button" id="authCloseButton" type="button">닫기</button>
           </div>
           <p id="authStatus">로그인하면 다른 기기에서도 저장 데이터를 불러올 수 있습니다.</p>
+          <div class="auth-form">
+            <label>
+              <span>이메일</span>
+              <input id="authEmailInput" type="email" autocomplete="email" placeholder="email@example.com" />
+            </label>
+            <label>
+              <span>비밀번호</span>
+              <input id="authPasswordInput" type="password" autocomplete="current-password" placeholder="6자 이상" />
+            </label>
+          </div>
           <div class="auth-actions">
+            <button class="primary" id="authLoginButton" type="button">메일로 로그인</button>
+            <button class="secondary" id="authSignupButton" type="button">메일로 회원가입</button>
             <button class="primary google-auth-button" id="authGoogleButton" type="button">Google 계정으로 시작</button>
             <button class="secondary hidden" id="authLogoutButton" type="button">로그아웃</button>
           </div>
-          <p class="modal-hint" id="authHint">Google 계정으로 바로 시작할 수 있습니다.</p>
+          <p class="modal-hint" id="authHint">이메일로 로그인하거나 회원가입할 수 있습니다.</p>
         </div>
       </div>
       <div class="modal-overlay hidden" id="coffeeModal" role="dialog" aria-modal="true" aria-labelledby="coffeeTitle">
@@ -95,6 +107,18 @@
             <button class="icon-button" id="shopCloseButton" type="button">닫기</button>
           </div>
           <div class="shop-items" id="shopItems"></div>
+        </div>
+      </div>
+      <div class="modal-overlay hidden" id="mobileInventoryModal" role="dialog" aria-modal="true" aria-labelledby="mobileInventoryTitle">
+        <div class="modal-card">
+          <div class="modal-title-row">
+            <div>
+              <p class="eyebrow">가방</p>
+              <h2 id="mobileInventoryTitle">아이템 사용</h2>
+            </div>
+            <button class="icon-button" id="mobileInventoryCloseButton" type="button">닫기</button>
+          </div>
+          <div class="inventory-items" id="mobileInventoryItems"></div>
         </div>
       </div>
       <div class="modal-overlay hidden" id="gambleModal" role="dialog" aria-modal="true" aria-labelledby="gambleTitle">
@@ -165,6 +189,7 @@
           </div>
           <div class="top-actions">
             <button class="secondary compact-action" id="shopToggleButton" type="button">🏠 상점</button>
+            <button class="secondary compact-action mobile-inventory-button" id="mobileInventoryButton" type="button"><span class="bag-icon" aria-hidden="true"></span><span>가방</span></button>
             <button class="secondary compact-action" id="topWorkButton" type="button">👹 몬스터</button>
             <button class="secondary compact-action" id="topGambleButton" type="button">🎲 도박</button>
             <button class="secondary compact-action" id="autoEnhanceButton" type="button">자동 강화</button>
@@ -183,6 +208,21 @@
           </div>
         </div>
         <button class="secondary compact-action mobile-settings-button" type="button" data-mobile-settings-button aria-expanded="false" aria-controls="settingsRow">⚙ 설정</button>
+
+        <div class="mobile-status-bar" aria-label="모바일 핵심 상태">
+          <div>
+            <span>골드</span>
+            <strong id="mobileGold">0</strong>
+          </div>
+          <div>
+            <span>비용</span>
+            <strong id="mobileCost">0</strong>
+          </div>
+          <div>
+            <span>성공</span>
+            <strong id="mobileChance">0%</strong>
+          </div>
+        </div>
 
         <div class="sword-area">
           <div class="glow" id="glow"></div>
@@ -212,6 +252,7 @@
           </div>
           <div class="top-actions">
             <button class="secondary compact-action" id="autoAttackButton" type="button">자동 공격</button>
+            <button class="secondary compact-action mobile-inventory-button" id="battleMobileInventoryButton" type="button"><span class="bag-icon" aria-hidden="true"></span><span>가방</span></button>
             <button class="secondary compact-action" id="gambleToggleButton" type="button">🎲 도박</button>
             <button class="icon-button" id="backButton" type="button">강화로</button>
           </div>
@@ -355,6 +396,6 @@
       </aside>
     </main>
 
-    <script type="module" src="script.js?v=20260619-ranking-icons"></script>
+    <script type="module" src="script.js?v=20260619-mobile-settings-back"></script>
   </body>
 </html>
