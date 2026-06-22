@@ -2584,9 +2584,6 @@ function defeatMonster() {
     stopAutoEnhance();
     playSound("item");
     playItemDrop(drops[0]);
-    const reason = "아이템이 드랍되어 자동 강화를 중지했습니다.";
-    setMessage(reason);
-    showAutoEnhanceStopReason(reason);
   }
   const dropNames = drops.map((itemKey) => ITEMS[itemKey].name);
   const dropText = dropNames.length ? ` 아이템: ${dropNames.join(", ")} 획득.` : "";
