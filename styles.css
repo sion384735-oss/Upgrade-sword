@@ -2306,7 +2306,7 @@ button .gold-coin-icon,
   }
 
   .battle-view .top-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .top-enhance-settings {
@@ -2633,7 +2633,7 @@ button .gold-coin-icon,
   }
 
   .battle-view .top-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .top-actions .compact-action,
